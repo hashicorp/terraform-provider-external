@@ -107,7 +107,7 @@ set -e
 eval "$(jq -r '@sh "FOO=\(.foo) BAZ=\(.baz)"')"
 
 # Placeholder for whatever data-fetching logic your script implements
-FOOBAZ="$FOO BAZ"
+FOOBAZ="$FOO $BAZ"
 
 # Safely produce a JSON object containing the result value.
 # jq will ensure that the value is properly quoted
