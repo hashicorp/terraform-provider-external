@@ -1,4 +1,9 @@
-## 1.0.1 (Unreleased)
+## 1.1.0 (Unreleased)
+
+ENHANCEMENTS:
+
+* `external` data source now accepts `working_dir` argument to set the working directory for the child process. [GH-12]
+
 ## 1.0.0 (September 14, 2017)
 
 * No changes from 0.1.0; just adjusting to [the new version numbering scheme](https://www.hashicorp.com/blog/hashicorp-terraform-provider-versioning/).
