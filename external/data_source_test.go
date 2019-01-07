@@ -41,7 +41,7 @@ func TestDataSource_basic(t *testing.T) {
 	resource.UnitTest(t, resource.TestCase{
 		Providers: testProviders,
 		Steps: []resource.TestStep{
-			resource.TestStep{
+			{
 				Config: fmt.Sprintf(testDataSourceConfig_basic, programPath),
 				Check: func(s *terraform.State) error {
 					_, ok := s.RootModule().Resources["data.external.test"]
@@ -98,7 +98,7 @@ func TestDataSource_error(t *testing.T) {
 	resource.UnitTest(t, resource.TestCase{
 		Providers: testProviders,
 		Steps: []resource.TestStep{
-			resource.TestStep{
+			{
 				Config:      fmt.Sprintf(testDataSourceConfig_error, programPath),
 				ExpectError: regexp.MustCompile("I was asked to fail"),
 			},
