@@ -2,6 +2,7 @@
 
 ENHANCEMENTS:
 
+* The provider is now compatible with Terraform v0.12, while retaining compatibility with prior versions.
 * `external` data source now accepts `working_dir` argument to set the working directory for the child process. [GH-12]
 
 ## 1.0.0 (September 14, 2017)
