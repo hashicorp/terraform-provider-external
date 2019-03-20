@@ -1,9 +1,9 @@
-## 1.1.0 (Unreleased)
+## 1.1.0 (March 20, 2019)
 
 ENHANCEMENTS:
 
 * The provider is now compatible with Terraform v0.12, while retaining compatibility with prior versions.
-* `external` data source now accepts `working_dir` argument to set the working directory for the child process. [GH-12]
+* `external` data source now accepts `working_dir` argument to set the working directory for the child process. ([#12](https://github.com/terraform-providers/terraform-provider-external/issues/12))
 
 ## 1.0.0 (September 14, 2017)
 
