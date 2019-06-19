@@ -1,4 +1,9 @@
 ## 1.2.0 (Unreleased)
+
+IMPROVEMENTS
+
+* Trace logging added for JSON output [GH-36]
+
 ## 1.1.2 (April 30, 2019)
 
 * This release includes another Terraform SDK upgrade intended to align with that being used for other providers as we prepare for the Core v0.12.0 release. It should have no significant changes in behavior for this provider.
