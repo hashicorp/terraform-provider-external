@@ -1,8 +1,8 @@
-## 1.2.0 (Unreleased)
+## 1.2.0 (June 19, 2019)
 
 IMPROVEMENTS
 
-* Trace logging added for JSON output [GH-36]
+* Trace logging added for JSON output ([#36](https://github.com/terraform-providers/terraform-provider-external/issues/36))
 
 ## 1.1.2 (April 30, 2019)
 
