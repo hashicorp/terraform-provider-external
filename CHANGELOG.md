@@ -1,4 +1,9 @@
 ## 1.3.0 (Unreleased)
+
+NOTES:
+
+* The provider has switched to the standalone TF SDK, there should be no noticeable impact on compatibility. [GH-39]
+
 ## 1.2.0 (June 19, 2019)
 
 IMPROVEMENTS
