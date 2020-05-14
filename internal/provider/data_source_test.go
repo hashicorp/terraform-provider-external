@@ -1,4 +1,4 @@
-package external
+package provider
 
 import (
 	"fmt"
@@ -110,7 +110,7 @@ func buildDataSourceTestProgram() (string, error) {
 	// We have a simple Go program that we use as a stub for testing.
 	cmd := exec.Command(
 		"go", "install",
-		"github.com/terraform-providers/terraform-provider-external/external/test-programs/tf-acc-external-data-source",
+		"github.com/terraform-providers/terraform-provider-external/internal/provider/testdata/tf-acc-external-data-source",
 	)
 	err := cmd.Run()
 
