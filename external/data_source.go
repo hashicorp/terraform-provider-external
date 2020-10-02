@@ -79,7 +79,7 @@ func dataSourceRead(d *schema.ResourceData, meta interface{}) error {
 	cmd.Stdin = bytes.NewReader(queryJson)
 
 	resultJson, err := cmd.Output()
-	log.Printf("[TRACE] JSON output: %+v\n", resultJson)
+	log.Printf("[TRACE] JSON output: %+v\n", string(resultJson))
 	if err != nil {
 		if exitErr, ok := err.(*exec.ExitError); ok {
 			if exitErr.Stderr != nil && len(exitErr.Stderr) > 0 {
