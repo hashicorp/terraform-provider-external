@@ -1,4 +1,4 @@
-package external
+package provider
 
 import (
 	"testing"
@@ -7,11 +7,11 @@ import (
 )
 
 func TestProvider(t *testing.T) {
-	if err := Provider().InternalValidate(); err != nil {
+	if err := New().InternalValidate(); err != nil {
 		t.Fatalf("err: %s", err)
 	}
 }
 
 var testProviders = map[string]*schema.Provider{
-	"external": Provider(),
+	"external": New(),
 }
