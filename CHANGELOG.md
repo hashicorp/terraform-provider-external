@@ -1,14 +1,14 @@
-## 2.0.0 (Unreleased)
+## 2.0.0 (October 12, 2020)
 
 Binary releases of this provider will now include the linux-arm64 platform.
 
 BREAKING CHANGES:
 
-* Upgrade to version 2 of the Terraform Plugin SDK, which drops support for Terraform 0.11. This provider will continue to work as expected for users of Terraform 0.11, which will not download the new version. [GH-47]
+* Upgrade to version 2 of the Terraform Plugin SDK, which drops support for Terraform 0.11. This provider will continue to work as expected for users of Terraform 0.11, which will not download the new version. ([#47](https://github.com/terraform-providers/terraform-provider-external/issues/47))
 
 BUG FIXES:
 
-* In Debugging mode, print the JSON from external data source as a string [GH-46]
+* In Debugging mode, print the JSON from external data source as a string ([#46](https://github.com/terraform-providers/terraform-provider-external/issues/46))
 
 ## 1.2.0 (June 19, 2019)
 
