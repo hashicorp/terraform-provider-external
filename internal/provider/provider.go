@@ -9,6 +9,8 @@ func New() *schema.Provider {
 		DataSourcesMap: map[string]*schema.Resource{
 			"external": dataSource(),
 		},
-		ResourcesMap: map[string]*schema.Resource{},
+		ResourcesMap: map[string]*schema.Resource{
+			"external": resourceExternal(),
+		},
 	}
 }
