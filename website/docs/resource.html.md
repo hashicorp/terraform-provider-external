@@ -42,7 +42,7 @@ configurations that are applied within Terraform Enterprise.
     1. Program reads data from `input`/`input_sensitive`
     
     1. Program must fill-in `id` during create and update 
-        representing current and future values of `custom_resource.*.id`:
+        representing current and future values of `external_resource.*.id`:
     
         1. Program empties `id` (eg. `echo -n > "${TF_EXTERNAL_DIR}/id"`)
             during read when the resource disappeared (externally).
