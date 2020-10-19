@@ -49,7 +49,7 @@ func replacedState(replacement string) string {
 
 const testAccResourceCustom = `locals {
   script = <<EOT
-  set -xeuo pipefail
+  set -xeu
 
   main() {
 	"cmd_$@"
