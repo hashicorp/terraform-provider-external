@@ -17,6 +17,11 @@ func resourceExternal() *schema.Resource {
 		},
 
 		Schema: map[string]*schema.Schema{
+			"program_tmp_dir": {
+				Type:     schema.TypeString,
+				Optional: true,
+				Default:  "",
+			},
 			"program_create": {
 				Type: schema.TypeList,
 				Elem: &schema.Schema{

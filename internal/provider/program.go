@@ -19,12 +19,13 @@ var TempDirBase string
 const TempDirPattern = "*"
 
 type program struct {
-	data    *schema.ResourceData
-	context context.Context
-	name    string
-	tmpDir  string
-	files   map[string]string
-	perms   map[string]os.FileMode
+	data          *schema.ResourceData
+	context       context.Context
+	name          string
+	currentTmpDir string
+	inputTmpDir   string
+	files         map[string]string
+	perms         map[string]os.FileMode
 }
 
 func init() {
@@ -43,6 +44,7 @@ func Program(ctx context.Context, data *schema.ResourceData) *program {
 		context: ctx,
 		data:    data,
 	}
+	p.inputTmpDir = data.Get("program_tmp_dir").(string)
 
 	p.files = map[string]string{
 		"input":            p.data.Get("input").(string),
@@ -74,23 +76,34 @@ func (p *program) openDir() (diags diag.Diagnostics) {
 		})
 		return
 	}
-
-	if err := os.MkdirAll(TempDirBase, 0700); err != nil {
-		diags = append(diags, diag.Diagnostic{
-			Severity: diag.Error,
-			Summary:  fmt.Sprintf("Error creating temporary directory parent %s in %s", TempDirBase, cwd),
-			Detail:   err.Error(),
-		})
-		return
-	}
-	p.tmpDir, err = ioutil.TempDir(TempDirBase, TempDirPattern)
-	if err != nil {
-		diags = append(diags, diag.Diagnostic{
-			Severity: diag.Error,
-			Summary:  fmt.Sprintf("Error creating temporary directory %s in %s", TempDirBase, cwd),
-			Detail:   err.Error(),
-		})
-		return
+	if p.inputTmpDir != "" {
+		if err := os.MkdirAll(p.inputTmpDir, 0700); err != nil {
+			diags = append(diags, diag.Diagnostic{
+				Severity: diag.Error,
+				Summary:  fmt.Sprintf("Error creating temporary directory parent %s in %s", TempDirBase, cwd),
+				Detail:   err.Error(),
+			})
+			return
+		}
+		p.currentTmpDir = p.inputTmpDir
+	} else {
+		if err := os.MkdirAll(TempDirBase, 0700); err != nil {
+			diags = append(diags, diag.Diagnostic{
+				Severity: diag.Error,
+				Summary:  fmt.Sprintf("Error creating temporary directory parent %s in %s", TempDirBase, cwd),
+				Detail:   err.Error(),
+			})
+			return
+		}
+		p.currentTmpDir, err = ioutil.TempDir(TempDirBase, TempDirPattern)
+		if err != nil {
+			diags = append(diags, diag.Diagnostic{
+				Severity: diag.Error,
+				Summary:  fmt.Sprintf("Error creating temporary directory %s in %s", TempDirBase, cwd),
+				Detail:   err.Error(),
+			})
+			return
+		}
 	}
 
 	for name, content := range p.files {
@@ -107,20 +120,20 @@ func (p *program) openDir() (diags diag.Diagnostics) {
 }
 func (p *program) prepareEnv() (env []string, diags diag.Diagnostics) {
 	env = append(env, os.Environ()...)
-	if len(p.tmpDir) == 0 {
+	if len(p.currentTmpDir) == 0 {
 		diags = append(diags, diag.Diagnostic{
 			Severity: diag.Error,
-			Summary:  "Cannot prepareEnv() because tmpDir is empty!",
+			Summary:  "Cannot prepareEnv() because currentTmpDir is empty!",
 		})
 		return
 	}
 
-	env = append(env, fmt.Sprintf("%s=%s", "TF_EXTERNAL_DIR", p.tmpDir))
+	env = append(env, fmt.Sprintf("%s=%s", "TF_EXTERNAL_DIR", p.currentTmpDir))
 
-	if abs, err := filepath.Abs(p.tmpDir); err != nil {
+	if abs, err := filepath.Abs(p.currentTmpDir); err != nil {
 		diags = append(diags, diag.Diagnostic{
 			Severity: diag.Error,
-			Summary:  fmt.Sprintf("Failed converting %#v to absolute path!", p.tmpDir),
+			Summary:  fmt.Sprintf("Failed converting %#v to absolute path!", p.currentTmpDir),
 			Detail:   err.Error(),
 		})
 		return
@@ -201,17 +214,17 @@ func (p *program) getArgs(key string) (spec []string) {
 }
 
 func (p *program) closeDir() (diags diag.Diagnostics) {
-	if len(p.tmpDir) == 0 {
+	if len(p.currentTmpDir) == 0 {
 		return
 	}
-	if err := os.RemoveAll(p.tmpDir); err != nil {
+	if err := os.RemoveAll(p.currentTmpDir); err != nil {
 		diags = append(diags, diag.Diagnostic{
 			Severity: diag.Warning,
-			Summary:  fmt.Sprintf("Error when cleaning up temporary directory %s", p.tmpDir),
+			Summary:  fmt.Sprintf("Error when cleaning up temporary directory %s", p.currentTmpDir),
 			Detail:   err.Error(),
 		})
 	}
-	p.tmpDir = ""
+	p.currentTmpDir = ""
 	return
 }
 
@@ -243,7 +256,7 @@ func runProgram(ctx context.Context, data *schema.ResourceData, name string, com
 }
 
 func (p *program) readFile(name string) (text string, diags diag.Diagnostics) {
-	fullPath := path.Join(p.tmpDir, name)
+	fullPath := path.Join(p.currentTmpDir, name)
 	info, err := os.Stat(fullPath)
 	if err != nil {
 		diags = append(diags, diag.Diagnostic{
@@ -290,7 +303,7 @@ func (p *program) readFile(name string) (text string, diags diag.Diagnostics) {
 }
 
 func (p *program) createFile(name string, content string, perm os.FileMode) (diags diag.Diagnostics) {
-	fullPath := path.Join(p.tmpDir, name)
+	fullPath := path.Join(p.currentTmpDir, name)
 	file, err := os.OpenFile(fullPath, os.O_CREATE|os.O_WRONLY, perm)
 	if err != nil {
 		diags = append(diags, diag.Diagnostic{
