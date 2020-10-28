@@ -2,7 +2,6 @@ package provider
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/diag"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
@@ -19,13 +18,17 @@ var TempDirBase string
 const TempDirPattern = "*"
 
 type program struct {
-	data          *schema.ResourceData
-	context       context.Context
-	name          string
-	currentTmpDir string
-	inputTmpDir   string
-	files         map[string]string
-	perms         map[string]os.FileMode
+	combinedOutput    bool
+	context           context.Context
+	currentTmpDir     string
+	data              *schema.ResourceData
+	files             map[string]string
+	inputTmpDir       string
+	keepTmpDir        bool
+	keepTmpDirOnError bool
+	name              string
+	perms             map[string]os.FileMode
+	removeDir         bool
 }
 
 func init() {
@@ -44,7 +47,10 @@ func Program(ctx context.Context, data *schema.ResourceData) *program {
 		context: ctx,
 		data:    data,
 	}
-	p.inputTmpDir = data.Get("program_tmp_dir").(string)
+	p.inputTmpDir = data.Get("program_tmpdir").(string)
+	p.keepTmpDir = data.Get("program_tmpdir_keep").(bool)
+	p.keepTmpDirOnError = data.Get("program_tmpdir_keep_on_error").(bool)
+	p.combinedOutput = data.Get("program_output_combined").(bool)
 
 	p.files = map[string]string{
 		"input":            p.data.Get("input").(string),
@@ -61,6 +67,19 @@ func Program(ctx context.Context, data *schema.ResourceData) *program {
 		"output_sensitive": 0200,
 		"state":            0600,
 		"id":               0600,
+		"stdout":           0600,
+		"stderr":           0600,
+		"stdall":           0600,
+	}
+	if p.combinedOutput {
+		p.files["stdall"] = ""
+		p.perms["stdall"] = 0600
+	} else {
+		p.files["stdout"] = ""
+		p.perms["stdout"] = 0600
+
+		p.files["stderr"] = ""
+		p.perms["stderr"] = 0600
 	}
 
 	return p
@@ -157,20 +176,114 @@ func (p *program) executeCommand(key string) (diags diag.Diagnostics) {
 	if diags.HasError() {
 		return
 	}
-	cmdRepr, _ := json.Marshal(args)
+	var cmdReprLines []string
+	for argNum, entry := range args {
+		prefix := fmt.Sprintf("program[%d]: ", argNum)
+		for argLineNum, line := range strings.Split(entry, "\n") {
+			if argLineNum == 0 {
+				line = prefix + line
+			} else {
+				line = strings.Repeat(" ", len(prefix)) + line
+			}
+			cmdReprLines = append(cmdReprLines, line)
+		}
+	}
+	cmdRepr := strings.Join(cmdReprLines, "\n")
 
 	cmd.Env = env
-	output, err := cmd.CombinedOutput()
+	var stdallPath string
+	var stdoutPath string
+	var stderrPath string
+	if p.combinedOutput {
+		var stdall *os.File
+		var ds diag.Diagnostics
+		stdall, stdallPath, ds = p.openFileForWriting("stdall")
+		diags = append(diags, ds...)
+		if diags.HasError() {
+			return
+		}
+		defer func() { diags = append(diags, p.closeFile(stdall, diag.Warning)...) }()
+
+		cmd.Stdout = stdall
+		cmd.Stderr = stdall
+	} else {
+		var stdout *os.File
+		var stderr *os.File
+		var ds diag.Diagnostics
+		stdout, stdoutPath, ds = p.openFileForWriting("stdout")
+		diags = append(diags, ds...)
+		if diags.HasError() {
+			return
+		}
+		defer func() { diags = append(diags, p.closeFile(stdout, diag.Warning)...) }()
+
+		stderr, stderrPath, ds = p.openFileForWriting("stderr")
+		diags = append(diags, ds...)
+		if diags.HasError() {
+			return
+		}
+		defer func() { diags = append(diags, p.closeFile(stderr, diag.Warning)...) }()
+		cmd.Stdout = stdout
+		cmd.Stderr = stderr
+	}
+
+	err := cmd.Start()
+	if err != nil {
+		diags = append(diags, diag.Diagnostic{
+			Severity: diag.Error,
+			Summary:  fmt.Sprintf("Error when starting program %s", p.name),
+			Detail:   fmt.Sprintf("ERROR=%v\nCOMMAND:\n%s", err.Error(), cmdRepr),
+		})
+		return
+	}
+
+	err = cmd.Wait()
+
+	var outputLength int
+	var outputRepr string
+
+	if p.combinedOutput {
+		content, err := ioutil.ReadFile(stdallPath)
+		if err != nil {
+			diags = append(diags, diag.Diagnostic{
+				Severity: diag.Warning,
+				Summary:  fmt.Sprintf("Error reading from combined output file %s for %s", stdallPath, p.name),
+			})
+		}
+
+		outputLength = len(content)
+		outputRepr = string(content)
+	} else {
+		stdoutOutput, err := ioutil.ReadFile(stdoutPath)
+		if err != nil {
+			diags = append(diags, diag.Diagnostic{
+				Severity: diag.Warning,
+				Summary:  fmt.Sprintf("Error reading from stdout output file %s for %s", stdoutPath, p.name),
+			})
+		}
+
+		stderrOutput, err := ioutil.ReadFile(stderrPath)
+		if err != nil {
+			diags = append(diags, diag.Diagnostic{
+				Severity: diag.Warning,
+				Summary:  fmt.Sprintf("Error reading from stderr output file %s for %s", stderrPath, p.name),
+			})
+		}
+
+		outputLength = len(stdoutOutput) + len(stderrOutput)
+		outputRepr = fmt.Sprintf("=== STDOUT ===\n%s=== STDERR ===\n%s", string(stdoutOutput), string(stderrOutput))
+	}
+
 	diags = append(diags, diag.Diagnostic{
 		Severity: diag.Warning,
-		Summary:  fmt.Sprintf("Combined output (%d bytes) of %s: %s", len(output), p.name, cmdRepr),
-		Detail:   string(output),
+		Summary:  fmt.Sprintf("Combined output (%d bytes) of %s:\n%s", outputLength, p.name, cmdRepr),
+		Detail:   outputRepr,
 	})
 	if err != nil {
 		diags = append(diags, diag.Diagnostic{
 			Severity: diag.Error,
-			Summary:  fmt.Sprintf("Error when running %s", p.name),
-			Detail:   fmt.Sprintf("ERROR=%v\nCOMMAND %v\nOUTPUT (%d bytes):\n%v", err.Error(), cmdRepr, len(output), string(output)),
+			Summary:  fmt.Sprintf("Error when running %s: %v", p.name, err.Error()),
+			Detail:   fmt.Sprintf("%s\nOUTPUT (%d bytes):\n%s", cmdRepr, outputLength, outputRepr),
 		})
 	}
 	return
@@ -213,8 +326,14 @@ func (p *program) getArgs(key string) (spec []string) {
 	return spec
 }
 
-func (p *program) closeDir() (diags diag.Diagnostics) {
-	if len(p.currentTmpDir) == 0 {
+func (p *program) closeDir(hadError bool) (diags diag.Diagnostics) {
+	if p.currentTmpDir == "" {
+		return
+	}
+	if p.keepTmpDir {
+		return
+	}
+	if p.keepTmpDirOnError && hadError {
 		return
 	}
 	if err := os.RemoveAll(p.currentTmpDir); err != nil {
@@ -235,7 +354,7 @@ func runProgram(ctx context.Context, data *schema.ResourceData, name string, com
 	if diags.HasError() {
 		return
 	}
-	defer func() { diags = append(diags, p.closeDir()...) }()
+	defer func() { diags = append(diags, p.closeDir(diags.HasError())...) }()
 
 	diags = append(diags, p.executeCommand(commandKey)...)
 	if diags.HasError() {
@@ -304,33 +423,40 @@ func (p *program) readFile(name string) (text string, diags diag.Diagnostics) {
 
 func (p *program) createFile(name string, content string, perm os.FileMode) (diags diag.Diagnostics) {
 	fullPath := path.Join(p.currentTmpDir, name)
-	file, err := os.OpenFile(fullPath, os.O_CREATE|os.O_WRONLY, perm)
+	err := ioutil.WriteFile(fullPath, []byte(content), perm)
 	if err != nil {
 		diags = append(diags, diag.Diagnostic{
 			Severity: diag.Error,
-			Summary:  fmt.Sprintf("Error creating file %s", fullPath),
+			Summary:  fmt.Sprintf("Error writing to file %s with permissions ", fullPath),
 			Detail:   err.Error(),
 		})
 		return
 	}
+	return
+}
 
-	defer func() {
-		if err := file.Close(); err != nil {
-			diags = append(diags, diag.Diagnostic{
-				Severity: diag.Error,
-				Summary:  fmt.Sprintf("Error when closing %s", fullPath),
-				Detail:   err.Error(),
-			})
-		}
-	}()
-
-	if _, err := file.WriteString(content); err != nil {
+func (p *program) openFileForWriting(name string) (file *os.File, fullPath string, diags diag.Diagnostics) {
+	fullPath = filepath.Join(p.currentTmpDir, name)
+	file, err := os.OpenFile(fullPath, os.O_APPEND, 0600)
+	if err != nil {
 		diags = append(diags, diag.Diagnostic{
 			Severity: diag.Error,
-			Summary:  fmt.Sprintf("Error writing to file %s", fullPath),
-			Detail:   err.Error(),
+			Summary:  fmt.Sprintf("Error when opening file for writing %s", fullPath),
 		})
+	}
+	return file, fullPath, diags
+}
+
+func (p *program) closeFile(file *os.File, severity diag.Severity) (diags diag.Diagnostics) {
+	if file == nil {
 		return
+	}
+
+	if err := file.Close(); err != nil {
+		diags = append(diags, diag.Diagnostic{
+			Severity: severity,
+			Summary:  fmt.Sprintf("Error when closing file for writing %s", file.Name()),
+		})
 	}
 	return
 }

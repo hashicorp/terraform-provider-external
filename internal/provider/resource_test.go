@@ -56,7 +56,7 @@ func replacedState(replacement string) string {
 }
 
 func withTmpDir(input, dir string) string {
-	return strings.ReplaceAll(input, "program_tmp_dir = \"\"", fmt.Sprintf("program_tmp_dir = \"%s\"", dir))
+	return strings.ReplaceAll(input, "program_tmpdir = \"\"", fmt.Sprintf("program_tmpdir = \"%s\"", dir))
 }
 
 const testAccResourceCustom = `locals {
@@ -92,7 +92,7 @@ resource "external" "foo" {
   input = "/tmp/terraform-provider-external_test"
   state = "STATE_PLACEHOLDER"
 
-  program_tmp_dir = ""
+  program_tmpdir = ""
   program_create = concat(local.program, ["update"])
   program_read = concat(local.program, ["read"])
   program_update = concat(local.program, ["update"])

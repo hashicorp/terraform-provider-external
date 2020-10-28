@@ -17,10 +17,25 @@ func resourceExternal() *schema.Resource {
 		},
 
 		Schema: map[string]*schema.Schema{
-			"program_tmp_dir": {
+			"program_tmpdir": {
 				Type:     schema.TypeString,
 				Optional: true,
 				Default:  "",
+			},
+			"program_tmpdir_keep": {
+				Type:     schema.TypeBool,
+				Optional: true,
+				Default:  false,
+			},
+			"program_tmpdir_keep_on_error": {
+				Type:     schema.TypeBool,
+				Optional: true,
+				Default:  false,
+			},
+			"program_output_combined": {
+				Type:     schema.TypeBool,
+				Optional: true,
+				Default:  true,
 			},
 			"program_create": {
 				Type: schema.TypeList,
@@ -87,18 +102,18 @@ func resourceExternalCreate(ctx context.Context, data *schema.ResourceData, meta
 	p := Program(ctx, data)
 	p.name = "create"
 	diags = append(diags, p.openDir()...)
-	defer func() { diags = append(diags, p.closeDir()...) }()
+	defer func() { diags = append(diags, p.closeDir(diags.HasError())...) }()
 	if diags.HasError() {
 		return
 	}
 	if _, ok := data.GetOk("program_create"); ok {
-		p.name += "create>create"
+		p.name += ">create"
 		diags = append(diags, p.executeCommand("program_create")...)
 		if diags.HasError() {
 			return
 		}
 	} else {
-		p.name += "create>update"
+		p.name += ">update"
 		diags = append(diags, p.executeCommand("program_update")...)
 	}
 	p.name = "create"
@@ -119,7 +134,7 @@ func resourceExternalRead(ctx context.Context, data *schema.ResourceData, meta i
 	p := Program(ctx, data)
 	p.name = "read"
 	diags = append(diags, p.openDir()...)
-	defer func() { diags = append(diags, p.closeDir()...) }()
+	defer func() { diags = append(diags, p.closeDir(diags.HasError())...) }()
 	if diags.HasError() {
 		return
 	}
@@ -146,7 +161,7 @@ func resourceExternalUpdate(ctx context.Context, data *schema.ResourceData, meta
 	name := "update"
 	p.name = name
 	diags = append(diags, p.openDir()...)
-	defer func() { diags = append(diags, p.closeDir()...) }()
+	defer func() { diags = append(diags, p.closeDir(diags.HasError())...) }()
 	if diags.HasError() {
 		return
 	}
