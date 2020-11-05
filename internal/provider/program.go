@@ -28,6 +28,7 @@ type program struct {
 	keepTmpDirOnError bool
 	name              string
 	perms             map[string]os.FileMode
+	providerData      *schema.ResourceData
 	removeDir         bool
 }
 
@@ -41,11 +42,12 @@ func init() {
 	TempDirBase = fmt.Sprintf("%s/terraform-provider-external", dir)
 }
 
-func Program(ctx context.Context, data *schema.ResourceData) *program {
+func Program(ctx context.Context, data *schema.ResourceData, providerData *schema.ResourceData) *program {
 	oldStateV, newStateV := data.GetChange("state")
 	p := &program{
-		context: ctx,
-		data:    data,
+		context:      ctx,
+		data:         data,
+		providerData: providerData,
 	}
 	p.inputTmpDir = data.Get("program_tmpdir").(string)
 	p.keepTmpDir = data.Get("program_tmpdir_keep").(bool)
@@ -53,6 +55,7 @@ func Program(ctx context.Context, data *schema.ResourceData) *program {
 	p.combinedOutput = data.Get("program_output_combined").(bool)
 
 	p.files = map[string]string{
+		"provider_input":   p.providerData.Get("input").(string),
 		"input":            p.data.Get("input").(string),
 		"input_sensitive":  p.data.Get("input_sensitive").(string),
 		"output":           p.data.Get("output").(string),
@@ -161,7 +164,7 @@ func (p *program) prepareEnv() (env []string, diags diag.Diagnostics) {
 	}
 
 	var files []string
-	for name, _ := range p.files {
+	for name := range p.files {
 		files = append(files, name)
 	}
 	env = append(env, fmt.Sprintf("%s=%s", "TF_EXTERNAL_MANAGED_FILES", strings.Join(files, ":")))
@@ -226,12 +229,11 @@ func (p *program) executeCommand(key string) (diags diag.Diagnostics) {
 		cmd.Stdout = stdout
 		cmd.Stderr = stderr
 	}
-
 	err := cmd.Start()
 	if err != nil {
 		diags = append(diags, diag.Diagnostic{
 			Severity: diag.Error,
-			Summary:  fmt.Sprintf("Error when starting program %s", p.name),
+			Summary:  fmt.Sprintf("Error when starting program %s in %s", p.name, p.currentTmpDir),
 			Detail:   fmt.Sprintf("ERROR=%v\nCOMMAND:\n%s", err.Error(), cmdRepr),
 		})
 		return
@@ -277,12 +279,12 @@ func (p *program) executeCommand(key string) (diags diag.Diagnostics) {
 	diags = append(diags, diag.Diagnostic{
 		Severity: diag.Warning,
 		Summary:  fmt.Sprintf("Combined output (%d bytes) of %s:\n%s", outputLength, p.name, cmdRepr),
-		Detail:   outputRepr,
+		Detail:   outputRepr, //
 	})
 	if err != nil {
 		diags = append(diags, diag.Diagnostic{
 			Severity: diag.Error,
-			Summary:  fmt.Sprintf("Error when running %s: %v", p.name, err.Error()),
+			Summary:  fmt.Sprintf("Error when running %s in %s: %v", p.name, p.currentTmpDir, err.Error()),
 			Detail:   fmt.Sprintf("%s\nOUTPUT (%d bytes):\n%s", cmdRepr, outputLength, outputRepr),
 		})
 	}
@@ -344,33 +346,6 @@ func (p *program) closeDir(hadError bool) (diags diag.Diagnostics) {
 		})
 	}
 	p.currentTmpDir = ""
-	return
-}
-
-func runProgram(ctx context.Context, data *schema.ResourceData, name string, commandKey string) (diags diag.Diagnostics) {
-	p := Program(ctx, data)
-	p.name = name
-	diags = append(diags, p.openDir()...)
-	if diags.HasError() {
-		return
-	}
-	defer func() { diags = append(diags, p.closeDir(diags.HasError())...) }()
-
-	diags = append(diags, p.executeCommand(commandKey)...)
-	if diags.HasError() {
-		return
-	}
-
-	diags = append(diags, p.storeId()...)
-	if diags.HasError() {
-		return
-	}
-
-	diags = append(diags, p.storeAttributes("state", "output", "output_sensitive")...)
-	if diags.HasError() {
-		return
-	}
-
 	return
 }
 

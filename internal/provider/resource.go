@@ -99,7 +99,7 @@ func resourceExternal() *schema.Resource {
 }
 
 func resourceExternalCreate(ctx context.Context, data *schema.ResourceData, meta interface{}) (diags diag.Diagnostics) {
-	p := Program(ctx, data)
+	p := Program(ctx, data, meta.(*schema.ResourceData))
 	p.name = "create"
 	diags = append(diags, p.openDir()...)
 	defer func() { diags = append(diags, p.closeDir(diags.HasError())...) }()
@@ -131,7 +131,7 @@ func resourceExternalCreate(ctx context.Context, data *schema.ResourceData, meta
 }
 
 func resourceExternalRead(ctx context.Context, data *schema.ResourceData, meta interface{}) (diags diag.Diagnostics) {
-	p := Program(ctx, data)
+	p := Program(ctx, data, meta.(*schema.ResourceData))
 	p.name = "read"
 	diags = append(diags, p.openDir()...)
 	defer func() { diags = append(diags, p.closeDir(diags.HasError())...) }()
@@ -157,9 +157,8 @@ func resourceExternalRead(ctx context.Context, data *schema.ResourceData, meta i
 }
 
 func resourceExternalUpdate(ctx context.Context, data *schema.ResourceData, meta interface{}) (diags diag.Diagnostics) {
-	p := Program(ctx, data)
-	name := "update"
-	p.name = name
+	p := Program(ctx, data, meta.(*schema.ResourceData))
+	p.name = "update"
 	diags = append(diags, p.openDir()...)
 	defer func() { diags = append(diags, p.closeDir(diags.HasError())...) }()
 	if diags.HasError() {
@@ -184,7 +183,29 @@ func resourceExternalUpdate(ctx context.Context, data *schema.ResourceData, meta
 }
 
 func resourceExternalDelete(ctx context.Context, data *schema.ResourceData, meta interface{}) (diags diag.Diagnostics) {
-	diags = append(diags, runProgram(ctx, data, "delete", "program_delete")...)
+	providerData := meta.(*schema.ResourceData)
+	p := Program(ctx, data, providerData)
+	p.name = "delete"
+	diags = append(diags, p.openDir()...)
+	if diags.HasError() {
+		return
+	}
+	defer func() { diags = append(diags, p.closeDir(diags.HasError())...) }()
+
+	diags = append(diags, p.executeCommand("program_delete")...)
+	if diags.HasError() {
+		return
+	}
+
+	diags = append(diags, p.storeId()...)
+	if diags.HasError() {
+		return
+	}
+
+	diags = append(diags, p.storeAttributes("state", "output", "output_sensitive")...)
+	if diags.HasError() {
+		return
+	}
 
 	data.SetId("")
 	return
