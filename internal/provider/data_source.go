@@ -59,11 +59,11 @@ func dataSource() *schema.Resource {
 					Type: schema.TypeString,
 				},
 			},
-			
+
 			"keep_error_code": {
 				Description: "An error code that tell the datasource to keep previous result unchanged",
-				Type:     schema.TypeInt,
-				Optional: true,
+				Type:        schema.TypeInt,
+				Optional:    true,
 			},
 
 			"result": {
@@ -114,7 +114,7 @@ func dataSourceRead(d *schema.ResourceData, meta interface{}) error {
 	if err != nil {
 		if exitErr, ok := err.(*exec.ExitError); ok {
 			if status, ok := exiterr.Sys().(syscall.WaitStatus); ok {
-				if keep_status_code == status.ExitStatus(){
+				if keep_status_code == status.ExitStatus() {
 					return nil
 				}
 			}
