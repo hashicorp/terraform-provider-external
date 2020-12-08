@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log"
 	"os/exec"
+	"syscall"
 
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
 )
@@ -60,6 +61,12 @@ func dataSource() *schema.Resource {
 				},
 			},
 
+			"keep_error_code": {
+				Description: "An error code that tell the datasource to keep previous result unchanged",
+				Type:        schema.TypeInt,
+				Optional:    true,
+			},
+
 			"result": {
 				Description: "A map of string values returned from the external program.",
 				Type:        schema.TypeMap,
@@ -77,6 +84,7 @@ func dataSourceRead(d *schema.ResourceData, meta interface{}) error {
 	programI := d.Get("program").([]interface{})
 	workingDir := d.Get("working_dir").(string)
 	query := d.Get("query").(map[string]interface{})
+	keep_error_code := d.Get("keep_error_code").(int)
 
 	// This would be a ValidateFunc if helper/schema allowed these
 	// to be applied to lists.
@@ -106,6 +114,11 @@ func dataSourceRead(d *schema.ResourceData, meta interface{}) error {
 	log.Printf("[TRACE] JSON output: %+v\n", string(resultJson))
 	if err != nil {
 		if exitErr, ok := err.(*exec.ExitError); ok {
+			if status, ok := exitErr.Sys().(syscall.WaitStatus); ok {
+				if keep_error_code == status.ExitStatus() {
+					return nil
+				}
+			}
 			if exitErr.Stderr != nil && len(exitErr.Stderr) > 0 {
 				return fmt.Errorf("failed to execute %q: %s", program[0], string(exitErr.Stderr))
 			}
