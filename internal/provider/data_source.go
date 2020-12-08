@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log"
 	"os/exec"
+	"syscall"
 
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
 )
@@ -113,8 +114,8 @@ func dataSourceRead(d *schema.ResourceData, meta interface{}) error {
 	log.Printf("[TRACE] JSON output: %+v\n", string(resultJson))
 	if err != nil {
 		if exitErr, ok := err.(*exec.ExitError); ok {
-			if status, ok := exiterr.Sys().(syscall.WaitStatus); ok {
-				if keep_status_code == status.ExitStatus() {
+			if status, ok := exitErr.Sys().(syscall.WaitStatus); ok {
+				if keep_error_code == status.ExitStatus() {
 					return nil
 				}
 			}
