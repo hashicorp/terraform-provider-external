@@ -60,7 +60,7 @@ func dataSource() *schema.Resource {
 					Type: schema.TypeString,
 				},
 			},
-			
+
 			"keep_error_code": {
 				Description: "An error code that tell the datasource to keep previous result unchanged",
 				Type:        schema.TypeInt,
