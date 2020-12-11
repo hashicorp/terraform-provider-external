@@ -1,4 +1,4 @@
-Terraform Provider
+Terraform `external` Provider
 ==================
 
 - Website: https://www.terraform.io
