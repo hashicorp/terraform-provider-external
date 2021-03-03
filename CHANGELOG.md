@@ -1,10 +1,14 @@
-## 2.1.0 (Unreleased)
+## 2.2.0 (Unreleased)
 
 * Add `sensitive` data source which masks the query and result. This is functionally identical to its non-sensitive counterpart.
 
+## 2.1.0 (February 19, 2021)
+
+Binary releases of this provider now include the darwin-arm64 platform. This version contains no further changes.
+
 ## 2.0.0 (October 12, 2020)
 
-Binary releases of this provider will now include the linux-arm64 platform.
+Binary releases of this provider now include the linux-arm64 platform.
 
 BREAKING CHANGES:
 
