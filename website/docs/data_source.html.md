@@ -12,6 +12,12 @@ The `external` data source allows an external program implementing a specific
 protocol (defined below) to act as a data source, exposing arbitrary
 data for use elsewhere in the Terraform configuration.
 
+There is also a `external_sensitive` data source that is functionally identical
+to the `external` data source, but marks the `query` argument and `result`
+attribute as "sensitive" (hiding its value in the UI). See [this
+document](https://www.terraform.io/docs/extend/best-practices/sensitive-state.html)
+for more information on sensitive values.
+
 ~> **Warning** This mechanism is provided as an "escape hatch" for exceptional
 situations where a first-class Terraform provider is not more appropriate.
 Its capabilities are limited in comparison to a true data source, and
