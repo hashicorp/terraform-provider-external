@@ -61,7 +61,7 @@ func dataSource() *schema.Resource {
 			},
 
 			"result": {
-				Description: "A map of string values returned from the external program.",
+				Description: "A map of string values returned from the external program. Note: Only key value map is accepted",
 				Type:        schema.TypeMap,
 				Computed:    true,
 				Elem: &schema.Schema{
