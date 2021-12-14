@@ -1,3 +1,9 @@
+## 2.1.1 (Unreleased)
+
+NOTES:
+
+* The release process was upgraded to use Go 1.16.12 to mitigate CVE-2021-44717.
+
 ## 2.1.0 (February 19, 2021)
 
 Binary releases of this provider now include the darwin-arm64 platform. This version contains no further changes.
