@@ -1,4 +1,4 @@
-## 2.1.1 (Unreleased)
+## 2.1.1 (December 14, 2021)
 
 NOTES:
 
