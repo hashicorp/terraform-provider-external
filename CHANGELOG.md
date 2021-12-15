@@ -1,3 +1,9 @@
+## 2.2.0 (Unreleased)
+
+ENHANCEMENTS:
+
+* data-source/external: Program execution will now exit immediately when receiving an interrupt signal (Ctrl-c) from Terraform ([#91](https://github.com/terraform-providers/terraform-provider-external/issues/91))
+
 ## 2.1.1 (December 14, 2021)
 
 NOTES:
