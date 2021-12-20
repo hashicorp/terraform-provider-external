@@ -4,9 +4,12 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"fmt"
 	"log"
 	"os/exec"
+	"runtime"
 
+	"github.com/hashicorp/go-cty/cty"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/diag"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
 )
@@ -41,6 +44,7 @@ func dataSource() *schema.Resource {
 				Elem: &schema.Schema{
 					Type: schema.TypeString,
 				},
+				MinItems: 1,
 			},
 
 			"working_dir": {
@@ -79,28 +83,54 @@ func dataSourceRead(ctx context.Context, d *schema.ResourceData, meta interface{
 	workingDir := d.Get("working_dir").(string)
 	query := d.Get("query").(map[string]interface{})
 
-	// This would be a ValidateFunc if helper/schema allowed these
-	// to be applied to lists.
-	if err := validateProgramAttr(programI); err != nil {
-		return diag.FromErr(err)
-	}
-
 	program := make([]string, len(programI))
 	for i, vI := range programI {
 		program[i] = vI.(string)
 	}
 
-	cmd := exec.CommandContext(ctx, program[0], program[1:]...)
-
-	cmd.Dir = workingDir
-
 	queryJson, err := json.Marshal(query)
 	if err != nil {
-		// Should never happen, since we know query will always be a map
-		// from string to string, as guaranteed by d.Get and our schema.
-		return diag.FromErr(err)
+		return diag.Diagnostics{
+			{
+				Severity: diag.Error,
+				Summary:  "Query Handling Failed",
+				Detail: "The data source received an unexpected error while attempting to parse the query. " +
+					"This is always a bug in the external provider code and should be reported to the provider developers." +
+					fmt.Sprintf("\n\nError: %s", err),
+				AttributePath: cty.GetAttrPath("query"),
+			},
+		}
 	}
 
+	// first element is assumed to be an executable command, possibly found
+	// using the PATH environment variable.
+	_, err = exec.LookPath(program[0])
+
+	if err != nil {
+		return diag.Diagnostics{
+			{
+				Severity: diag.Error,
+				Summary:  "External Program Lookup Failed",
+				Detail: `The data source received an unexpected error while attempting to find the program.
+
+The program must be accessible according to the platform where Terraform is running.
+
+If the expected program should be automatically found on the platform where Terraform is running, ensure that the program is in an expected directory. On Unix-based platforms, these directories are typically searched based on the '$PATH' environment variable. On Windows-based platforms, these directories are typically searched based on the '%PATH%' environment variable.
+
+If the expected program is relative to the Terraform configuration, it is recommended that the program name includes the interpolated value of 'path.module' before the program name to ensure that it is compatible with varying module usage. For example: "${path.module}/my-program"
+
+The program must also be executable according to the platform where Terraform is running. On Unix-based platforms, the file on the filesystem must have the executable bit set. On Windows-based platforms, no action is typically necessary.
+` +
+					fmt.Sprintf("\nPlatform: %s", runtime.GOOS) +
+					fmt.Sprintf("\nProgram: %s", program[0]) +
+					fmt.Sprintf("\nError: %s", err),
+				AttributePath: cty.GetAttrPath("program"),
+			},
+		}
+	}
+
+	cmd := exec.CommandContext(ctx, program[0], program[1:]...)
+	cmd.Dir = workingDir
 	cmd.Stdin = bytes.NewReader(queryJson)
 
 	resultJson, err := cmd.Output()
@@ -108,18 +138,62 @@ func dataSourceRead(ctx context.Context, d *schema.ResourceData, meta interface{
 	if err != nil {
 		if exitErr, ok := err.(*exec.ExitError); ok {
 			if exitErr.Stderr != nil && len(exitErr.Stderr) > 0 {
-				return diag.Errorf("failed to execute %q: %s", program[0], string(exitErr.Stderr))
+				return diag.Diagnostics{
+					{
+						Severity: diag.Error,
+						Summary:  "External Program Execution Failed",
+						Detail: "The data source received an unexpected error while attempting to execute the program." +
+							fmt.Sprintf("\n\nProgram: %s", cmd.Path) +
+							fmt.Sprintf("\nError Message: %s", string(exitErr.Stderr)) +
+							fmt.Sprintf("\nState: %s", err),
+						AttributePath: cty.GetAttrPath("program"),
+					},
+				}
 			}
-			return diag.Errorf("command %q failed with no error message", program[0])
-		} else {
-			return diag.Errorf("failed to execute %q: %s", program[0], err)
+
+			return diag.Diagnostics{
+				{
+					Severity: diag.Error,
+					Summary:  "External Program Execution Failed",
+					Detail: "The data source received an unexpected error while attempting to execute the program.\n\n" +
+						"The program was executed, however it returned no additional error messaging." +
+						fmt.Sprintf("\n\nProgram: %s", cmd.Path) +
+						fmt.Sprintf("\nState: %s", err),
+					AttributePath: cty.GetAttrPath("program"),
+				},
+			}
+		}
+
+		return diag.Diagnostics{
+			{
+				Severity: diag.Error,
+				Summary:  "External Program Execution Failed",
+				Detail: "The data source received an unexpected error while attempting to execute the program." +
+					fmt.Sprintf("\n\nProgram: %s", cmd.Path) +
+					fmt.Sprintf("\nError: %s", err),
+				AttributePath: cty.GetAttrPath("program"),
+			},
 		}
 	}
 
 	result := map[string]string{}
 	err = json.Unmarshal(resultJson, &result)
 	if err != nil {
-		return diag.Errorf("command %q produced invalid JSON: %s", program[0], err)
+		return diag.Diagnostics{
+			{
+				Severity: diag.Error,
+				Summary:  "Unexpected External Program Results",
+				Detail: `The data source received unexpected results after executing the program.
+
+Program output must be a JSON encoded map of string keys and string values.
+
+If the error is unclear, the output can be viewed by enabling Terraform's logging at TRACE level. Terraform documentation on logging: https://www.terraform.io/internals/debugging
+` +
+					fmt.Sprintf("\nProgram: %s", cmd.Path) +
+					fmt.Sprintf("\nResult Error: %s", err),
+				AttributePath: cty.GetAttrPath("program"),
+			},
+		}
 	}
 
 	d.Set("result", result)
