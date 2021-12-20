@@ -3,6 +3,7 @@
 ENHANCEMENTS:
 
 * data-source/external: Program execution will now exit immediately when receiving an interrupt signal (Ctrl-c) from Terraform ([#91](https://github.com/terraform-providers/terraform-provider-external/issues/91))
+* data-source/external: Enhanced error messaging to include more troubleshooting information and recommendations ([#93](https://github.com/terraform-providers/terraform-provider-external/issues/93))
 
 ## 2.1.1 (December 14, 2021)
 
