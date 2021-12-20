@@ -5,11 +5,11 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"log"
 	"os/exec"
 	"runtime"
 
 	"github.com/hashicorp/go-cty/cty"
+	"github.com/hashicorp/terraform-plugin-log/tflog"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/diag"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
 )
@@ -133,8 +133,12 @@ The program must also be executable according to the platform where Terraform is
 	cmd.Dir = workingDir
 	cmd.Stdin = bytes.NewReader(queryJson)
 
+	tflog.Trace(ctx, "Executing external program", "program", cmd.String())
+
 	resultJson, err := cmd.Output()
-	log.Printf("[TRACE] JSON output: %+v\n", string(resultJson))
+
+	tflog.Trace(ctx, "Executed external program", "program", cmd.String(), "output", string(resultJson))
+
 	if err != nil {
 		if exitErr, ok := err.(*exec.ExitError); ok {
 			if exitErr.Stderr != nil && len(exitErr.Stderr) > 0 {
