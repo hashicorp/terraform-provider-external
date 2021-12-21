@@ -69,6 +69,8 @@ jobs:
       with:
         terraform_version: ${{ matrix.terraform }}
         terraform_wrapper: false
+    - run: go mod download
+    - run: terraform version
     - name: TF acceptance tests
       timeout-minutes: 10
       env:
