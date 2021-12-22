@@ -50,11 +50,12 @@ jobs:
       fail-fast: false
       matrix:
         terraform:
-          - '0.12.31'
-          - '0.13.7'
-          - '0.14.11'
-          - '0.15.5'
-          - '1.0.1'
+          - '0.12.*'
+          - '0.13.*'
+          - '0.14.*'
+          - '0.15.*'
+          - '1.0.*'
+          - '1.1.*'
     steps:
     - uses: actions/checkout@v2.3.4
     - id: go-version
@@ -64,11 +65,15 @@ jobs:
       with:
         go-version: ${{ steps.go-version.outputs.version }}
       id: go
-
+    - uses: hashicorp/setup-terraform@v1
+      with:
+        terraform_version: ${{ matrix.terraform }}
+        terraform_wrapper: false
+    # See also: https://github.com/hashicorp/setup-terraform/issues/143
+    - run: terraform version
+    - run: go mod download
     - name: TF acceptance tests
       timeout-minutes: 10
       env:
         TF_ACC: "1"
-        TF_ACC_TERRAFORM_VERSION: ${{ matrix.terraform }}
-      run: |
-        go test -v -cover ./internal/provider/
+      run: go test -v -cover ./internal/provider/
