@@ -8,8 +8,8 @@ body:
         Thank you for taking the time to fill out this bug report! Please note that this issue tracker is only used for bug reports and feature requests. Other issues will be closed.
 
         If you have a configuration, workflow, or other question, please go back to the issue chooser and select one of the question links.
-  - type: input
-    id: terraform-cli-version
+  - type: textarea
+    id: versions
     attributes:
       label: Terraform CLI and Provider Versions
       description: What versions of Terraform CLI and the provider?
