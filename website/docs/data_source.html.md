@@ -1,7 +1,6 @@
 ---
 layout: "external"
 page_title: "External Data Source"
-sidebar_current: "docs-external-data-source"
 description: |-
   Executes an external program that implements a data source.
 ---
