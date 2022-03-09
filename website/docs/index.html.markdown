@@ -1,7 +1,6 @@
 ---
 layout: "external"
 page_title: "Provider: External"
-sidebar_current: "docs-external-index"
 description: |-
   The external provider allows external scripts to be integrated with Terraform.
 ---
