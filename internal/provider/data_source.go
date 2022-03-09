@@ -83,9 +83,27 @@ func dataSourceRead(ctx context.Context, d *schema.ResourceData, meta interface{
 	workingDir := d.Get("working_dir").(string)
 	query := d.Get("query").(map[string]interface{})
 
-	program := make([]string, len(programI))
-	for i, vI := range programI {
-		program[i] = vI.(string)
+	program := make([]string, 0, len(programI))
+
+	for _, programArgRaw := range programI {
+		programArg, ok := programArgRaw.(string)
+
+		if !ok || programArg == "" {
+			continue
+		}
+
+		program = append(program, programArg)
+	}
+
+	if len(program) == 0 {
+		return diag.Diagnostics{
+			{
+				Severity:      diag.Error,
+				Summary:       "External Program Missing",
+				Detail:        "The data source was configured without a program to execute. Verify the configuration contains at least one non-empty value.",
+				AttributePath: cty.GetAttrPath("program"),
+			},
+		}
 	}
 
 	queryJson, err := json.Marshal(query)

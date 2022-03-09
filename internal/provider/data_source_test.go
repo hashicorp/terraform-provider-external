@@ -106,6 +106,61 @@ func TestDataSource_error(t *testing.T) {
 	})
 }
 
+// Reference: https://github.com/hashicorp/terraform-provider-external/issues/110
+func TestDataSource_Program_OnlyEmptyString(t *testing.T) {
+	resource.UnitTest(t, resource.TestCase{
+		Providers: testProviders,
+		Steps: []resource.TestStep{
+			{
+				Config: `
+					data "external" "test" {
+						program = [
+							"", # e.g. a variable that became empty
+						]
+				
+						query = {
+							value = "valuetest"
+						}
+					}
+				`,
+				ExpectError: regexp.MustCompile(`External Program Missing`),
+			},
+		},
+	})
+}
+
+// Reference: https://github.com/hashicorp/terraform-provider-external/issues/110
+func TestDataSource_Program_PathAndEmptyString(t *testing.T) {
+	programPath, err := buildDataSourceTestProgram()
+	if err != nil {
+		t.Fatal(err)
+		return
+	}
+
+	resource.UnitTest(t, resource.TestCase{
+		Providers: testProviders,
+		Steps: []resource.TestStep{
+			{
+				Config: fmt.Sprintf(`
+					data "external" "test" {
+						program = [
+							%[1]q,
+							"", # e.g. a variable that became empty
+						]
+				
+						query = {
+							value = "valuetest"
+						}
+					}
+				`, programPath),
+				Check: resource.ComposeAggregateTestCheckFunc(
+					resource.TestCheckResourceAttr("data.external.test", "result.query_value", "valuetest"),
+				),
+			},
+		},
+	})
+}
+
 func buildDataSourceTestProgram() (string, error) {
 	// We have a simple Go program that we use as a stub for testing.
 	cmd := exec.Command(
