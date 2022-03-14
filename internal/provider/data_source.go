@@ -151,11 +151,11 @@ The program must also be executable according to the platform where Terraform is
 	cmd.Dir = workingDir
 	cmd.Stdin = bytes.NewReader(queryJson)
 
-	tflog.Trace(ctx, "Executing external program", "program", cmd.String())
+	tflog.Trace(ctx, "Executing external program", map[string]interface{}{"program": cmd.String()})
 
 	resultJson, err := cmd.Output()
 
-	tflog.Trace(ctx, "Executed external program", "program", cmd.String(), "output", string(resultJson))
+	tflog.Trace(ctx, "Executed external program", map[string]interface{}{"program": cmd.String(), "output": string(resultJson)})
 
 	if err != nil {
 		if exitErr, ok := err.(*exec.ExitError); ok {
