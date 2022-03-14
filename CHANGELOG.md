@@ -1,3 +1,9 @@
+## 2.2.2 (March 14, 2022)
+
+NOTES:
+
+* This release is a republishing of the 2.2.1 release to include a missing release asset. It is identical otherwise.
+
 ## 2.2.1 (March 14, 2022)
 
 BUG FIXES:
