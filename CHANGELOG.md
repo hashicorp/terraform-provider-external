@@ -1,3 +1,9 @@
+## 2.2.1 (March 14, 2022)
+
+BUG FIXES:
+
+* data-source/external: Prevented panics with empty string (`""`) elements in `program` argument
+
 ## 2.2.0 (January 3, 2022)
 
 ENHANCEMENTS:
