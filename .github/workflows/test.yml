@@ -65,7 +65,7 @@ jobs:
       with:
         go-version: ${{ steps.go-version.outputs.version }}
       id: go
-    - uses: hashicorp/setup-terraform@v1
+    - uses: hashicorp/setup-terraform@v2
       with:
         terraform_version: ${{ matrix.terraform }}
         terraform_wrapper: false
