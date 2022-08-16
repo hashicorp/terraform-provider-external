@@ -1,9 +1,3 @@
-## 2.3.0 (unreleased)
-
-NOTES:
-
-* This Go module has been updated to Go 1.18 per the Go support policy. Any consumers building on earlier Go versions may experience errors ([#152](https://github.com/hashicorp/terraform-provider-external/issues/152)).
-
 ## 2.2.2 (March 14, 2022)
 
 NOTES:
