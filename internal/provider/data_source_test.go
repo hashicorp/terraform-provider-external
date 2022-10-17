@@ -13,6 +13,13 @@ import (
 	"github.com/hashicorp/terraform-plugin-sdk/v2/terraform"
 )
 
+const (
+	// EnvTfAccExternalTimeoutTest is the name of the environment variable used
+	// to enable the 20 minute timeout test. The environment variable can be
+	// set to any value to enable the test.
+	EnvTfAccExternalTimeoutTest = "TF_ACC_EXTERNAL_TIMEOUT_TEST"
+)
+
 const testDataSourceConfig_basic = `
 data "external" "test" {
   program = ["%s", "cheese"]
@@ -182,4 +189,29 @@ func buildDataSourceTestProgram() (string, error) {
 		filepath.SplitList(gopath)[0], "bin", "tf-acc-external-data-source",
 	)
 	return programPath, nil
+}
+
+// Reference: https://github.com/hashicorp/terraform-provider-external/issues/145
+func TestDataSource_20MinuteTimeout(t *testing.T) {
+	if os.Getenv(EnvTfAccExternalTimeoutTest) == "" {
+		t.Skipf("Skipping this test since the %s environment variable is not set to any value. "+
+			"This test requires 20 minutes to run, so it is disabled by default.",
+			EnvTfAccExternalTimeoutTest,
+		)
+	}
+
+	resource.UnitTest(t, resource.TestCase{
+		Providers: testProviders,
+		Steps: []resource.TestStep{
+			{
+				Config: `
+					data "external" "test" {
+						program = ["sleep", "1205"] # over 20 minutes
+					}
+				`,
+				// Not External Program Execution Failed / State: signal: killed
+				ExpectError: regexp.MustCompile(`Unexpected External Program Results`),
+			},
+		},
+	})
 }

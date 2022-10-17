@@ -31,7 +31,7 @@ func dataSource() *schema.Resource {
 			"or external programs beyond standard shell utilities, so it is not recommended to use this data source " +
 			"within configurations that are applied within Terraform Enterprise.",
 
-		ReadContext: dataSourceRead,
+		ReadWithoutTimeout: dataSourceRead,
 
 		Schema: map[string]*schema.Schema{
 			"program": {
