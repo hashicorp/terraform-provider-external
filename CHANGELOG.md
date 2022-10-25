@@ -1,3 +1,9 @@
+## 2.2.3 (Unreleased)
+
+BUG FIXES:
+
+* data-source/external: Prevented unexpected error after 20 minutes of program execution ([#165](https://github.com/terraform-providers/terraform-provider-external/issues/165))
+
 ## 2.2.2 (March 14, 2022)
 
 NOTES:
