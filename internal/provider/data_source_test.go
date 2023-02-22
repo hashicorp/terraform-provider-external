@@ -168,6 +168,92 @@ func TestDataSource_Program_PathAndEmptyString(t *testing.T) {
 	})
 }
 
+func TestDataSource_upgrade(t *testing.T) {
+	programPath, err := buildDataSourceTestProgram()
+	if err != nil {
+		t.Fatal(err)
+		return
+	}
+
+	resource.Test(t, resource.TestCase{
+		Steps: []resource.TestStep{
+			{
+				ExternalProviders: providerVersion223(),
+				Config:            fmt.Sprintf(testDataSourceConfig_basic, programPath),
+				Check: func(s *terraform.State) error {
+					_, ok := s.RootModule().Resources["data.external.test"]
+					if !ok {
+						return fmt.Errorf("missing data resource")
+					}
+
+					outputs := s.RootModule().Outputs
+
+					if outputs["argument"] == nil {
+						return fmt.Errorf("missing 'argument' output")
+					}
+					if outputs["query_value"] == nil {
+						return fmt.Errorf("missing 'query_value' output")
+					}
+
+					if outputs["argument"].Value != "cheese" {
+						return fmt.Errorf(
+							"'argument' output is %q; want 'cheese'",
+							outputs["argument"].Value,
+						)
+					}
+					if outputs["query_value"].Value != "pizza" {
+						return fmt.Errorf(
+							"'query_value' output is %q; want 'pizza'",
+							outputs["query_value"].Value,
+						)
+					}
+
+					return nil
+				},
+			},
+			{
+				ProtoV5ProviderFactories: protoV5ProviderFactories(),
+				Config:                   fmt.Sprintf(testDataSourceConfig_basic, programPath),
+				PlanOnly:                 true,
+			},
+			{
+				ProtoV5ProviderFactories: protoV5ProviderFactories(),
+				Config:                   fmt.Sprintf(testDataSourceConfig_basic, programPath),
+				Check: func(s *terraform.State) error {
+					_, ok := s.RootModule().Resources["data.external.test"]
+					if !ok {
+						return fmt.Errorf("missing data resource")
+					}
+
+					outputs := s.RootModule().Outputs
+
+					if outputs["argument"] == nil {
+						return fmt.Errorf("missing 'argument' output")
+					}
+					if outputs["query_value"] == nil {
+						return fmt.Errorf("missing 'query_value' output")
+					}
+
+					if outputs["argument"].Value != "cheese" {
+						return fmt.Errorf(
+							"'argument' output is %q; want 'cheese'",
+							outputs["argument"].Value,
+						)
+					}
+					if outputs["query_value"].Value != "pizza" {
+						return fmt.Errorf(
+							"'query_value' output is %q; want 'pizza'",
+							outputs["query_value"].Value,
+						)
+					}
+
+					return nil
+				},
+			},
+		},
+	})
+}
+
 func buildDataSourceTestProgram() (string, error) {
 	// We have a simple Go program that we use as a stub for testing.
 	cmd := exec.Command(
