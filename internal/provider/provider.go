@@ -1,14 +1,38 @@
 package provider
 
 import (
-	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
+	"context"
+
+	"github.com/hashicorp/terraform-plugin-framework/datasource"
+	"github.com/hashicorp/terraform-plugin-framework/provider"
+	"github.com/hashicorp/terraform-plugin-framework/resource"
 )
 
-func New() *schema.Provider {
-	return &schema.Provider{
-		DataSourcesMap: map[string]*schema.Resource{
-			"external": dataSource(),
-		},
-		ResourcesMap: map[string]*schema.Resource{},
+var _ provider.Provider = (*externalProvider)(nil)
+
+func New() provider.Provider {
+	return &externalProvider{}
+}
+
+type externalProvider struct{}
+
+func (p *externalProvider) Metadata(ctx context.Context, req provider.MetadataRequest, resp *provider.MetadataResponse) {
+	resp.TypeName = "external"
+}
+
+func (p *externalProvider) Configure(ctx context.Context, req provider.ConfigureRequest, resp *provider.ConfigureResponse) {
+
+}
+
+func (p *externalProvider) DataSources(ctx context.Context) []func() datasource.DataSource {
+	return []func() datasource.DataSource{
+		NewExternalDataSource,
 	}
+}
+
+func (p *externalProvider) Resources(ctx context.Context) []func() resource.Resource {
+	return nil
+}
+
+func (p *externalProvider) Schema(context.Context, provider.SchemaRequest, *provider.SchemaResponse) {
 }

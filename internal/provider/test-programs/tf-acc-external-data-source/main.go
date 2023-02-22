@@ -3,7 +3,7 @@ package main
 import (
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"os"
 )
 
@@ -15,7 +15,7 @@ import (
 // this example is just in Go because we want to avoid introducing
 // additional language runtimes into the test environment.
 func main() {
-	queryBytes, err := ioutil.ReadAll(os.Stdin)
+	queryBytes, err := io.ReadAll(os.Stdin)
 	if err != nil {
 		panic(err)
 	}
