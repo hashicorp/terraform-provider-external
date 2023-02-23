@@ -1,0 +1,52 @@
+---
+page_title: "{{.Name}} {{.Type}} - {{.ProviderName}}"
+description: |-
+{{ .Description | plainmarkdown | trimspace | prefixlines "  " }}
+---
+
+# {{.Name}}
+
+{{ .Description | trimspace }}
+
+## Example Usage
+
+{{ tffile "examples/data-sources/external.tf" }}
+
+## External Program Protocol
+
+The external program described by the `program` attribute must implement a
+specific protocol for interacting with Terraform, as follows.
+
+The program must read all of the data passed to it on `stdin`, and parse
+it as a JSON object. The JSON object contains the contents of the `query`
+argument and its values will always be strings.
+
+The program must then produce a valid JSON object on `stdout`, which will
+be used to populate the `result` attribute exported to the rest of the
+Terraform configuration. This JSON object must again have all of its
+values as strings. On successful completion it must exit with status zero.
+
+If the program encounters an error and is unable to produce a result, it
+must print a human-readable error message (ideally a single line) to `stderr`
+and exit with a non-zero status. Any data on `stdout` is ignored if the
+program returns a non-zero status.
+
+All environment variables visible to the Terraform process are passed through
+to the child program.
+
+Terraform expects a data source to have *no observable side-effects*, and will
+re-run the program each time the state is refreshed.
+
+{{ .SchemaMarkdown | trimspace }}
+
+## Processing JSON in shell scripts
+
+Since the external data source protocol uses JSON, it is recommended to use
+the utility [`jq`](https://stedolan.github.io/jq/) to translate to and from
+JSON in a robust way when implementing a data source in a shell scripting
+language.
+
+The following example shows some input/output boilerplate code for a
+data source implemented in bash:
+
+{{ codefile "shell" "examples/json-processing.sh" }}
