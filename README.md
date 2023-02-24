@@ -28,11 +28,9 @@ version it implements, and Terraform:
 
 | External Provider | Terraform Plugin Protocol | Terraform |
 |:-----------------:|:-------------------------:|:---------:|
-|    `>= 3.0.x`     |            `5`            | `>= 0.12` |
-|    `>= 2.1.x`     |        `4` and `5`        | `>= 0.12` |
-|    `>= 2.x.x`     |            `4`            | `<= 0.12` |
-|    `>= 1.x.x`     |            `4`            | `<= 0.12` |
-|    `>= 0.1.x`     |            `4`            | `<= 0.12` |
+|    `>= 2.0.x`     |            `5`            | `>= 0.12` |
+|    `>= 1.1.x`     |        `4` and `5`        | `>= 0.12` |
+|    `<= 1.x.x`     |            `4`            | `<= 0.12` |
 
 Details can be found querying the [Registry API](https://www.terraform.io/internals/provider-registry-protocol#list-available-versions)
 that return all the details about which version are currently available for a particular provider.
