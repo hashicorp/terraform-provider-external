@@ -1,0 +1,5 @@
+kind: NOTES
+body: 'provider: Rewritten to use the [`terraform-plugin-framework`](https://www.terraform.io/plugin/framework)'
+time: 2023-02-27T11:50:45.423274-05:00
+custom:
+  Issue: "184"
