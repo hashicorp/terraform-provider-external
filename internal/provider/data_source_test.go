@@ -168,6 +168,56 @@ func TestDataSource_Program_PathAndEmptyString(t *testing.T) {
 	})
 }
 
+func TestDataSource_Program_EmptyStringAndNullValues(t *testing.T) {
+	resource.UnitTest(t, resource.TestCase{
+		ProtoV5ProviderFactories: protoV5ProviderFactories(),
+		Steps: []resource.TestStep{
+			{
+				Config: `
+					data "external" "test" {
+						program = [
+							null, "", # e.g. a variable that became empty
+						]
+				
+						query = {
+							value = "valuetest"
+						}
+					}
+				`,
+				ExpectError: regexp.MustCompile(`External Program Missing`),
+			},
+		},
+	})
+}
+
+func TestDataSource_Query_NullValue(t *testing.T) {
+	programPath, err := buildDataSourceTestProgram()
+	if err != nil {
+		t.Fatal(err)
+		return
+	}
+
+	resource.UnitTest(t, resource.TestCase{
+		ProtoV5ProviderFactories: protoV5ProviderFactories(),
+		Steps: []resource.TestStep{
+			{
+				Config: fmt.Sprintf(`
+					data "external" "test" {
+						program = [%[1]q]
+				
+						query = {
+							value = null
+						}
+					}
+				`, programPath),
+				Check: resource.ComposeAggregateTestCheckFunc(
+					resource.TestCheckResourceAttr("data.external.test", "result.query_value", ""),
+				),
+			},
+		},
+	})
+}
+
 func TestDataSource_upgrade(t *testing.T) {
 	programPath, err := buildDataSourceTestProgram()
 	if err != nil {

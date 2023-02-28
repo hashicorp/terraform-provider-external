@@ -96,7 +96,7 @@ func (n *externalDataSource) Read(ctx context.Context, req datasource.ReadReques
 	if resp.Diagnostics.HasError() {
 		return
 	}
-	var program []string
+	var program []types.String
 
 	diags = config.Program.ElementsAs(ctx, &program, false)
 	resp.Diagnostics.Append(diags...)
@@ -107,11 +107,11 @@ func (n *externalDataSource) Read(ctx context.Context, req datasource.ReadReques
 	filteredProgram := make([]string, 0, len(program))
 
 	for _, programArgRaw := range program {
-		if programArgRaw == "" {
+		if programArgRaw.IsNull() || programArgRaw.ValueString() == "" {
 			continue
 		}
 
-		filteredProgram = append(program, programArgRaw)
+		filteredProgram = append(filteredProgram, programArgRaw.ValueString())
 	}
 
 	if len(filteredProgram) == 0 {
@@ -123,7 +123,7 @@ func (n *externalDataSource) Read(ctx context.Context, req datasource.ReadReques
 		return
 	}
 
-	var query map[string]string
+	var query map[string]types.String
 
 	diags = config.Query.ElementsAs(ctx, &query, false)
 	resp.Diagnostics.Append(diags...)
@@ -131,7 +131,16 @@ func (n *externalDataSource) Read(ctx context.Context, req datasource.ReadReques
 		return
 	}
 
-	queryJson, err := json.Marshal(query)
+	filteredQuery := make(map[string]string)
+	for key, value := range query {
+		if value.IsNull() || value.ValueString() == "" {
+			continue
+		}
+
+		filteredQuery[key] = value.ValueString()
+	}
+
+	queryJson, err := json.Marshal(filteredQuery)
 	if err != nil {
 		resp.Diagnostics.AddAttributeError(
 			path.Root("query"),
@@ -234,7 +243,12 @@ If the error is unclear, the output can be viewed by enabling Terraform's loggin
 		return
 	}
 
-	config.Result, _ = types.MapValueFrom(ctx, types.StringType, result)
+	config.Result, diags = types.MapValueFrom(ctx, types.StringType, result)
+	resp.Diagnostics.Append(diags...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
 	config.ID = types.StringValue("-")
 
 	diags = resp.State.Set(ctx, config)
