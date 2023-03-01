@@ -1,17 +1,23 @@
 package provider
 
 import (
-	"testing"
+	"github.com/hashicorp/terraform-plugin-framework/providerserver"
+	"github.com/hashicorp/terraform-plugin-go/tfprotov5"
 
-	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
+	"github.com/hashicorp/terraform-plugin-testing/helper/resource"
 )
 
-func TestProvider(t *testing.T) {
-	if err := New().InternalValidate(); err != nil {
-		t.Fatalf("err: %s", err)
+func protoV5ProviderFactories() map[string]func() (tfprotov5.ProviderServer, error) {
+	return map[string]func() (tfprotov5.ProviderServer, error){
+		"external": providerserver.NewProtocol5WithError(New()),
 	}
 }
 
-var testProviders = map[string]*schema.Provider{
-	"external": New(),
+func providerVersion223() map[string]resource.ExternalProvider {
+	return map[string]resource.ExternalProvider{
+		"external": {
+			VersionConstraint: "2.2.3",
+			Source:            "hashicorp/external",
+		},
+	}
 }

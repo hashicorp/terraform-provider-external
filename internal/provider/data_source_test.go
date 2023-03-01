@@ -9,8 +9,8 @@ import (
 	"regexp"
 	"testing"
 
-	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/resource"
-	"github.com/hashicorp/terraform-plugin-sdk/v2/terraform"
+	"github.com/hashicorp/terraform-plugin-testing/helper/resource"
+	"github.com/hashicorp/terraform-plugin-testing/terraform"
 )
 
 const (
@@ -46,7 +46,7 @@ func TestDataSource_basic(t *testing.T) {
 	}
 
 	resource.UnitTest(t, resource.TestCase{
-		Providers: testProviders,
+		ProtoV5ProviderFactories: protoV5ProviderFactories(),
 		Steps: []resource.TestStep{
 			{
 				Config: fmt.Sprintf(testDataSourceConfig_basic, programPath),
@@ -103,7 +103,7 @@ func TestDataSource_error(t *testing.T) {
 	}
 
 	resource.UnitTest(t, resource.TestCase{
-		Providers: testProviders,
+		ProtoV5ProviderFactories: protoV5ProviderFactories(),
 		Steps: []resource.TestStep{
 			{
 				Config:      fmt.Sprintf(testDataSourceConfig_error, programPath),
@@ -116,7 +116,7 @@ func TestDataSource_error(t *testing.T) {
 // Reference: https://github.com/hashicorp/terraform-provider-external/issues/110
 func TestDataSource_Program_OnlyEmptyString(t *testing.T) {
 	resource.UnitTest(t, resource.TestCase{
-		Providers: testProviders,
+		ProtoV5ProviderFactories: protoV5ProviderFactories(),
 		Steps: []resource.TestStep{
 			{
 				Config: `
@@ -145,7 +145,7 @@ func TestDataSource_Program_PathAndEmptyString(t *testing.T) {
 	}
 
 	resource.UnitTest(t, resource.TestCase{
-		Providers: testProviders,
+		ProtoV5ProviderFactories: protoV5ProviderFactories(),
 		Steps: []resource.TestStep{
 			{
 				Config: fmt.Sprintf(`
@@ -163,6 +163,142 @@ func TestDataSource_Program_PathAndEmptyString(t *testing.T) {
 				Check: resource.ComposeAggregateTestCheckFunc(
 					resource.TestCheckResourceAttr("data.external.test", "result.query_value", "valuetest"),
 				),
+			},
+		},
+	})
+}
+
+func TestDataSource_Program_EmptyStringAndNullValues(t *testing.T) {
+	resource.UnitTest(t, resource.TestCase{
+		ProtoV5ProviderFactories: protoV5ProviderFactories(),
+		Steps: []resource.TestStep{
+			{
+				Config: `
+					data "external" "test" {
+						program = [
+							null, "", # e.g. a variable that became empty
+						]
+				
+						query = {
+							value = "valuetest"
+						}
+					}
+				`,
+				ExpectError: regexp.MustCompile(`External Program Missing`),
+			},
+		},
+	})
+}
+
+func TestDataSource_Query_NullValue(t *testing.T) {
+	programPath, err := buildDataSourceTestProgram()
+	if err != nil {
+		t.Fatal(err)
+		return
+	}
+
+	resource.UnitTest(t, resource.TestCase{
+		ProtoV5ProviderFactories: protoV5ProviderFactories(),
+		Steps: []resource.TestStep{
+			{
+				Config: fmt.Sprintf(`
+					data "external" "test" {
+						program = [%[1]q]
+				
+						query = {
+							value = null
+						}
+					}
+				`, programPath),
+				Check: resource.ComposeAggregateTestCheckFunc(
+					resource.TestCheckResourceAttr("data.external.test", "result.query_value", ""),
+				),
+			},
+		},
+	})
+}
+
+func TestDataSource_upgrade(t *testing.T) {
+	programPath, err := buildDataSourceTestProgram()
+	if err != nil {
+		t.Fatal(err)
+		return
+	}
+
+	resource.Test(t, resource.TestCase{
+		Steps: []resource.TestStep{
+			{
+				ExternalProviders: providerVersion223(),
+				Config:            fmt.Sprintf(testDataSourceConfig_basic, programPath),
+				Check: func(s *terraform.State) error {
+					_, ok := s.RootModule().Resources["data.external.test"]
+					if !ok {
+						return fmt.Errorf("missing data resource")
+					}
+
+					outputs := s.RootModule().Outputs
+
+					if outputs["argument"] == nil {
+						return fmt.Errorf("missing 'argument' output")
+					}
+					if outputs["query_value"] == nil {
+						return fmt.Errorf("missing 'query_value' output")
+					}
+
+					if outputs["argument"].Value != "cheese" {
+						return fmt.Errorf(
+							"'argument' output is %q; want 'cheese'",
+							outputs["argument"].Value,
+						)
+					}
+					if outputs["query_value"].Value != "pizza" {
+						return fmt.Errorf(
+							"'query_value' output is %q; want 'pizza'",
+							outputs["query_value"].Value,
+						)
+					}
+
+					return nil
+				},
+			},
+			{
+				ProtoV5ProviderFactories: protoV5ProviderFactories(),
+				Config:                   fmt.Sprintf(testDataSourceConfig_basic, programPath),
+				PlanOnly:                 true,
+			},
+			{
+				ProtoV5ProviderFactories: protoV5ProviderFactories(),
+				Config:                   fmt.Sprintf(testDataSourceConfig_basic, programPath),
+				Check: func(s *terraform.State) error {
+					_, ok := s.RootModule().Resources["data.external.test"]
+					if !ok {
+						return fmt.Errorf("missing data resource")
+					}
+
+					outputs := s.RootModule().Outputs
+
+					if outputs["argument"] == nil {
+						return fmt.Errorf("missing 'argument' output")
+					}
+					if outputs["query_value"] == nil {
+						return fmt.Errorf("missing 'query_value' output")
+					}
+
+					if outputs["argument"].Value != "cheese" {
+						return fmt.Errorf(
+							"'argument' output is %q; want 'cheese'",
+							outputs["argument"].Value,
+						)
+					}
+					if outputs["query_value"].Value != "pizza" {
+						return fmt.Errorf(
+							"'query_value' output is %q; want 'pizza'",
+							outputs["query_value"].Value,
+						)
+					}
+
+					return nil
+				},
 			},
 		},
 	})
@@ -201,7 +337,7 @@ func TestDataSource_20MinuteTimeout(t *testing.T) {
 	}
 
 	resource.UnitTest(t, resource.TestCase{
-		Providers: testProviders,
+		ProtoV5ProviderFactories: protoV5ProviderFactories(),
 		Steps: []resource.TestStep{
 			{
 				Config: `

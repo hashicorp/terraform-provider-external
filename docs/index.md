@@ -1,5 +1,4 @@
 ---
-layout: "external"
 page_title: "Provider: External"
 description: |-
   The external provider allows external scripts to be integrated with Terraform.
