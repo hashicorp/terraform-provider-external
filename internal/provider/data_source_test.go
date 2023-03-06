@@ -190,7 +190,7 @@ func TestDataSource_Program_EmptyStringAndNullValues(t *testing.T) {
 	})
 }
 
-func TestDataSource_Query_NullValue(t *testing.T) {
+func TestDataSource_Query_NullAndEmptyValue(t *testing.T) {
 	programPath, err := buildDataSourceTestProgram()
 	if err != nil {
 		t.Fatal(err)
@@ -206,12 +206,14 @@ func TestDataSource_Query_NullValue(t *testing.T) {
 						program = [%[1]q]
 				
 						query = {
-							value = null
+							value = null,
+							value2 = ""
 						}
 					}
 				`, programPath),
 				Check: resource.ComposeAggregateTestCheckFunc(
-					resource.TestCheckResourceAttr("data.external.test", "result.query_value", ""),
+					resource.TestCheckResourceAttr("data.external.test", "result.value", ""),
+					resource.TestCheckResourceAttr("data.external.test", "result.value2", ""),
 				),
 			},
 		},

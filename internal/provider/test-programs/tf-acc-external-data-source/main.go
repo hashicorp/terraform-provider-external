@@ -40,6 +40,10 @@ func main() {
 		result["argument"] = os.Args[1]
 	}
 
+	for queryKey, queryValue := range query {
+		result[queryKey] = queryValue
+	}
+
 	resultBytes, err := json.Marshal(result)
 	if err != nil {
 		panic(err)
