@@ -1,6 +1,0 @@
-kind: BUG FIXES
-body: 'data-source/external: Remove query validation to allow null and empty string
-  values to be passed to the external program'
-time: 2023-03-06T14:38:52.356522-05:00
-custom:
-  Issue: "193"

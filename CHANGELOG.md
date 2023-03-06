@@ -1,3 +1,9 @@
+## 2.3.1 (March 06, 2023)
+
+BUG FIXES:
+
+* data-source/external: Remove query validation to allow null and empty string values to be passed to the external program ([#193](https://github.com/hashicorp/terraform-provider-external/issues/193))
+
 ## 2.3.0 (March 06, 2023)
 
 NOTES:
