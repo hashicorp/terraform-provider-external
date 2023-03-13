@@ -220,6 +220,56 @@ func TestDataSource_Query_NullAndEmptyValue(t *testing.T) {
 	})
 }
 
+func TestDataSource_CurrentDir(t *testing.T) {
+	programPath, err := buildDataSourceTestProgram()
+	if err != nil {
+		t.Fatal(err)
+		return
+	}
+
+	wd, err := os.Getwd()
+	if err != nil {
+		t.Fatalf("cannot create get current working dir: %s", err)
+	}
+
+	tempDir := t.TempDir()
+
+	err = os.Rename(programPath, filepath.Join(tempDir, "tf-acc-external-data-source"))
+	if err != nil {
+		t.Fatalf("cannot move tf-acc-external-data-source from go bin to temp dir: %s", err)
+	}
+
+	tempDirRel, err := filepath.Rel(wd, tempDir)
+	if err != nil {
+		t.Fatalf("could not obtain relative directory: %s", err)
+	}
+
+	p := os.Getenv("PATH")
+	t.Setenv("PATH", fmt.Sprintf("%s:%s", p, tempDirRel))
+
+	resource.UnitTest(t, resource.TestCase{
+		ProtoV5ProviderFactories: protoV5ProviderFactories(),
+		Steps: []resource.TestStep{
+			{
+				Config: fmt.Sprintf(`
+					data "external" "test" {
+						program = [%[1]q]
+				
+						query = {
+							value = null,
+							value2 = ""
+						}
+					}
+				`, "tf-acc-external-data-source"),
+				Check: resource.ComposeAggregateTestCheckFunc(
+					resource.TestCheckResourceAttr("data.external.test", "result.value", ""),
+					resource.TestCheckResourceAttr("data.external.test", "result.value2", ""),
+				),
+			},
+		},
+	})
+}
+
 func TestDataSource_upgrade(t *testing.T) {
 	programPath, err := buildDataSourceTestProgram()
 	if err != nil {
