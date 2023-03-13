@@ -152,6 +152,9 @@ func (n *externalDataSource) Read(ctx context.Context, req datasource.ReadReques
 	// first element is assumed to be an executable command, possibly found
 	// using the PATH environment variable.
 	_, err = exec.LookPath(filteredProgram[0])
+	if errors.Is(err, exec.ErrDot) {
+		err = nil
+	}
 
 	if err != nil {
 		resp.Diagnostics.AddAttributeError(
