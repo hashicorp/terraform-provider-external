@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os/exec"
 	"runtime"
@@ -177,6 +178,10 @@ The program must also be executable according to the platform where Terraform is
 	workingDir := config.WorkingDir.ValueString()
 
 	cmd := exec.CommandContext(ctx, filteredProgram[0], filteredProgram[1:]...)
+	if errors.Is(cmd.Err, exec.ErrDot) {
+		cmd.Err = nil
+	}
+
 	cmd.Dir = workingDir
 	cmd.Stdin = bytes.NewReader(queryJson)
 
