@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os/exec"
 	"runtime"
@@ -152,6 +153,16 @@ func (n *externalDataSource) Read(ctx context.Context, req datasource.ReadReques
 	// using the PATH environment variable.
 	_, err = exec.LookPath(filteredProgram[0])
 
+	// This is a workaround to preserve pre-existing behaviour prior to the upgrade to Go 1.19.
+	// Reference: https://github.com/hashicorp/terraform-provider-external/pull/192
+	//
+	// This workaround will be removed once a warning is being issued to notify practitioners
+	// of a change in behaviour.
+	// Reference: https://github.com/hashicorp/terraform-provider-external/issues/197
+	if errors.Is(err, exec.ErrDot) {
+		err = nil
+	}
+
 	if err != nil {
 		resp.Diagnostics.AddAttributeError(
 			path.Root("program"),
@@ -177,6 +188,17 @@ The program must also be executable according to the platform where Terraform is
 	workingDir := config.WorkingDir.ValueString()
 
 	cmd := exec.CommandContext(ctx, filteredProgram[0], filteredProgram[1:]...)
+
+	// This is a workaround to preserve pre-existing behaviour prior to the upgrade to Go 1.19.
+	// Reference: https://github.com/hashicorp/terraform-provider-external/pull/192
+	//
+	// This workaround will be removed once a warning is being issued to notify practitioners
+	// of a change in behaviour.
+	// Reference: https://github.com/hashicorp/terraform-provider-external/issues/197
+	if errors.Is(cmd.Err, exec.ErrDot) {
+		cmd.Err = nil
+	}
+
 	cmd.Dir = workingDir
 	cmd.Stdin = bytes.NewReader(queryJson)
 
