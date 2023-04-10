@@ -134,6 +134,17 @@ func (n *externalDataSource) Read(ctx context.Context, req datasource.ReadReques
 
 	filteredQuery := make(map[string]string)
 	for key, value := range query {
+		// Preserve v2.2.3 and earlier behavior of filtering whole map elements
+		// with null values.
+		// Reference: https://github.com/hashicorp/terraform-provider-external/issues/208
+		//
+		// The external program protocol could be updated to support null values
+		// as a breaking change by marshaling map[string]*string to JSON.
+		// Reference: https://github.com/hashicorp/terraform-provider-external/issues/209
+		if value.IsNull() {
+			continue
+		}
+
 		filteredQuery[key] = value.ValueString()
 	}
 

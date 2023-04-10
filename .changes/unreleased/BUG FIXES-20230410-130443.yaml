@@ -1,0 +1,6 @@
+kind: BUG FIXES
+body: 'data-source/external: Prevent regression since v2.3.1 where null `query` element
+  values would be sent to the program as an empty string'
+time: 2023-04-10T13:04:43.615508-04:00
+custom:
+  Issue: "208"
