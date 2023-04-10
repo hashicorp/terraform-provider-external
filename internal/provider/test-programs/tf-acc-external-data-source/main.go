@@ -20,20 +20,23 @@ func main() {
 		panic(err)
 	}
 
-	var query map[string]string
+	var query map[string]*string
 	err = json.Unmarshal(queryBytes, &query)
 	if err != nil {
 		panic(err)
 	}
 
-	if query["fail"] != "" {
+	if _, ok := query["fail"]; ok {
 		fmt.Fprintf(os.Stderr, "I was asked to fail\n")
 		os.Exit(1)
 	}
 
 	var result = map[string]string{
-		"result":      "yes",
-		"query_value": query["value"],
+		"result": "yes",
+	}
+
+	if queryValue, ok := query["value"]; ok && queryValue != nil {
+		result["query_value"] = *queryValue
 	}
 
 	if len(os.Args) >= 2 {
@@ -41,7 +44,9 @@ func main() {
 	}
 
 	for queryKey, queryValue := range query {
-		result[queryKey] = queryValue
+		if queryValue != nil {
+			result[queryKey] = *queryValue
+		}
 	}
 
 	resultBytes, err := json.Marshal(result)
