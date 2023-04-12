@@ -190,7 +190,7 @@ func TestDataSource_Program_EmptyStringAndNullValues(t *testing.T) {
 	})
 }
 
-func TestDataSource_Query_NullAndEmptyValue(t *testing.T) {
+func TestDataSource_Query_EmptyElementValue(t *testing.T) {
 	programPath, err := buildDataSourceTestProgram()
 	if err != nil {
 		t.Fatal(err)
@@ -206,14 +206,42 @@ func TestDataSource_Query_NullAndEmptyValue(t *testing.T) {
 						program = [%[1]q]
 				
 						query = {
-							value = null,
-							value2 = ""
+							value = "",
 						}
 					}
 				`, programPath),
 				Check: resource.ComposeAggregateTestCheckFunc(
 					resource.TestCheckResourceAttr("data.external.test", "result.value", ""),
-					resource.TestCheckResourceAttr("data.external.test", "result.value2", ""),
+				),
+			},
+		},
+	})
+}
+
+// Reference: https://github.com/hashicorp/terraform-provider-external/issues/208
+func TestDataSource_Query_NullElementValue(t *testing.T) {
+	programPath, err := buildDataSourceTestProgram()
+	if err != nil {
+		t.Fatal(err)
+		return
+	}
+
+	resource.UnitTest(t, resource.TestCase{
+		ProtoV5ProviderFactories: protoV5ProviderFactories(),
+		Steps: []resource.TestStep{
+			{
+				Config: fmt.Sprintf(`
+				data "external" "test" {
+				  program = [%q]
+				
+				  query = {
+					# Program will return exit status 1 if the "fail" key is present.
+					fail = null
+				  }
+				}
+				`, programPath),
+				Check: resource.ComposeAggregateTestCheckFunc(
+					resource.TestCheckNoResourceAttr("data.external.test", "result.fail"),
 				),
 			},
 		},
@@ -256,14 +284,12 @@ func TestDataSource_CurrentDir(t *testing.T) {
 						program = [%[1]q]
 				
 						query = {
-							value = null,
-							value2 = ""
+							value = "test",
 						}
 					}
 				`, "tf-acc-external-data-source"),
 				Check: resource.ComposeAggregateTestCheckFunc(
-					resource.TestCheckResourceAttr("data.external.test", "result.value", ""),
-					resource.TestCheckResourceAttr("data.external.test", "result.value2", ""),
+					resource.TestCheckResourceAttr("data.external.test", "result.value", "test"),
 				),
 			},
 		},
