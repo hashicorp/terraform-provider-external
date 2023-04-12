@@ -18,12 +18,16 @@ The `external` data source allows an external program implementing a specific pr
 
 ```terraform
 data "external" "example" {
-  program = ["python", "${path.module}/example-data-source.py"]
-
+  # don't forget to assure the machine running terraform commands 
+  # has the specified binary to run the program, in this example bash,
+  # could be python, powershell and etc.
+  program = ["bash", "${path.module}/example-data-source.sh"]
+  
   query = {
     # arbitrary map from strings to strings, passed
     # to the external program as the data query.
-    id = "abc123"
+    foo = "abc123"
+    baz = "def456"
   }
 }
 ```
