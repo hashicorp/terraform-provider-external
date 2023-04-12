@@ -1,7 +1,4 @@
 data "external" "example" {
-  # don't forget to assure the machine running terraform commands 
-  # has the specified binary to run the program, in this example bash,
-  # could be python, powershell and etc.
   program = ["bash", "${path.module}/example-data-source.sh"]
   
   query = {
