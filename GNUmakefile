@@ -12,7 +12,6 @@ lint:
 
 # Generate docs and copywrite headers
 generate:
-	go generate ./...
 	cd tools; go generate ./...
 
 fmt:
