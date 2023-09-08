@@ -1,6 +1,6 @@
 module github.com/terraform-providers/terraform-provider-external
 
-go 1.19
+go 1.20
 
 require (
 	github.com/hashicorp/terraform-plugin-framework v1.3.5
