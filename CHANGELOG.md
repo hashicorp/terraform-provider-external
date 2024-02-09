@@ -1,3 +1,9 @@
+## 2.3.2 (November 21, 2023)
+
+BUG FIXES:
+
+* data-source/external: Prevent regression since v2.3.1 where null `query` element values would be sent to the program as an empty string ([#208](https://github.com/hashicorp/terraform-provider-external/issues/208))
+
 ## 2.3.1 (March 06, 2023)
 
 BUG FIXES:
