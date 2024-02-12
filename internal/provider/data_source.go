@@ -11,6 +11,7 @@ import (
 	"fmt"
 	"os/exec"
 	"runtime"
+	"strings"
 
 	"github.com/hashicorp/terraform-plugin-framework-validators/listvalidator"
 	"github.com/hashicorp/terraform-plugin-framework/datasource"
@@ -216,32 +217,25 @@ The program must also be executable according to the platform where Terraform is
 	cmd.Dir = workingDir
 	cmd.Stdin = bytes.NewReader(queryJson)
 
+	var stderr strings.Builder
+	cmd.Stderr = &stderr
+
 	tflog.Trace(ctx, "Executing external program", map[string]interface{}{"program": cmd.String()})
 
 	resultJson, err := cmd.Output()
 
-	tflog.Trace(ctx, "Executed external program", map[string]interface{}{"program": cmd.String(), "output": string(resultJson)})
+	stderrStr := stderr.String()
+
+	tflog.Trace(ctx, "Executed external program", map[string]interface{}{"program": cmd.String(), "output": string(resultJson), "stderr": stderrStr})
 
 	if err != nil {
-		if exitErr, ok := err.(*exec.ExitError); ok {
-			if exitErr.Stderr != nil && len(exitErr.Stderr) > 0 {
-				resp.Diagnostics.AddAttributeError(
-					path.Root("program"),
-					"External Program Execution Failed",
-					"The data source received an unexpected error while attempting to execute the program."+
-						fmt.Sprintf("\n\nProgram: %s", cmd.Path)+
-						fmt.Sprintf("\nError Message: %s", string(exitErr.Stderr))+
-						fmt.Sprintf("\nState: %s", err),
-				)
-				return
-			}
-
+		if len(stderrStr) > 0 {
 			resp.Diagnostics.AddAttributeError(
 				path.Root("program"),
 				"External Program Execution Failed",
-				"The data source received an unexpected error while attempting to execute the program.\n\n"+
-					"The program was executed, however it returned no additional error messaging."+
+				"The data source received an unexpected error while attempting to execute the program."+
 					fmt.Sprintf("\n\nProgram: %s", cmd.Path)+
+					fmt.Sprintf("\nError Message: %s", stderrStr)+
 					fmt.Sprintf("\nState: %s", err),
 			)
 			return
@@ -250,9 +244,10 @@ The program must also be executable according to the platform where Terraform is
 		resp.Diagnostics.AddAttributeError(
 			path.Root("program"),
 			"External Program Execution Failed",
-			"The data source received an unexpected error while attempting to execute the program."+
+			"The data source received an unexpected error while attempting to execute the program.\n\n"+
+				"The program was executed, however it returned no additional error messaging."+
 				fmt.Sprintf("\n\nProgram: %s", cmd.Path)+
-				fmt.Sprintf("\nError: %s", err),
+				fmt.Sprintf("\nState: %s", err),
 		)
 		return
 	}
