@@ -1,0 +1,6 @@
+kind: NOTES
+body: 'data-source/external: The stderr output of the executed program will now always
+  be logged at the TRACE level, regardless of exit code.'
+time: 2024-02-12T16:16:34.536837-05:00
+custom:
+  Issue: "67"
