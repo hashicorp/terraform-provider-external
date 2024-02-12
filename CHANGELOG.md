@@ -1,3 +1,9 @@
+## 2.3.3 (February 12, 2024)
+
+NOTES:
+
+* data-source/external: The stderr output of the executed program will now always be logged at the TRACE level, regardless of exit code. ([#67](https://github.com/hashicorp/terraform-provider-external/issues/67))
+
 ## 2.3.2 (November 21, 2023)
 
 BUG FIXES:
