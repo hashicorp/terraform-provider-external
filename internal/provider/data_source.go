@@ -189,7 +189,7 @@ func (n *externalDataSource) Read(ctx context.Context, req datasource.ReadReques
 		sh := os.Getenv("SHELL")
 		for _, s := range shells {
 			if strings.HasSuffix(sh, "/"+s) {
-				executableString = []string{sh, "-i", "-c"}
+				executableString = []string{sh, "-i", "-c", "--"}
 				args := strings.Join(filteredProgram, " ")
 				executableString = append(executableString, args)
 				err = nil
