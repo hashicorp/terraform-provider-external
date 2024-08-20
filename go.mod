@@ -2,7 +2,7 @@ module github.com/terraform-providers/terraform-provider-external
 
 go 1.21
 
-toolchain go1.21.6
+toolchain go1.21.13
 
 require (
 	github.com/hashicorp/terraform-plugin-framework v1.11.0
