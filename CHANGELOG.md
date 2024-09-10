@@ -1,3 +1,9 @@
+## 2.3.4 (September 10, 2024)
+
+NOTES:
+
+* all: This release introduces no functional changes. It does however include dependency updates which address upstream CVEs. ([#357](https://github.com/hashicorp/terraform-provider-external/issues/357))
+
 ## 2.3.3 (February 12, 2024)
 
 NOTES:
