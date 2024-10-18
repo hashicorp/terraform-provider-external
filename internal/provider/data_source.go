@@ -14,6 +14,7 @@ import (
 	"strings"
 
 	"github.com/hashicorp/terraform-plugin-framework-validators/listvalidator"
+	"github.com/hashicorp/terraform-plugin-framework/attr"
 	"github.com/hashicorp/terraform-plugin-framework/datasource"
 	"github.com/hashicorp/terraform-plugin-framework/datasource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/path"
@@ -72,11 +73,12 @@ func (n *externalDataSource) Schema(ctx context.Context, req datasource.SchemaRe
 				Optional: true,
 			},
 
-			"query": schema.MapAttribute{
+			"query": schema.DynamicAttribute{
+				// TODO: Update description
 				Description: "A map of string values to pass to the external program as the query " +
 					"arguments. If not supplied, the program will receive an empty object as its input.",
-				ElementType: types.StringType,
-				Optional:    true,
+				// ElementType: types,
+				Optional: true,
 			},
 
 			"result": schema.MapAttribute{
@@ -128,15 +130,65 @@ func (n *externalDataSource) Read(ctx context.Context, req datasource.ReadReques
 		return
 	}
 
-	var query map[string]types.String
+	// var query map[string]types.Dynamic
 
-	diags = config.Query.ElementsAs(ctx, &query, false)
+	// optional logic for handling null value
+	/*if data.ExampleAttribute.IsNull() {
+	      // ...
+	  }
+
+	  // optional logic for handling unknown value
+	  if data.ExampleAttribute.IsUnknown() {
+	      // ...
+	  }*/
+
+	//  TODO: Handle error
+	// value, _ := config.Query.UnderlyingValue().ToTerraformValue(ctx) //.(types.Object)
+
+	// isKnown := value.IsKnown()
+	// println(isKnown)
+	// println(value.Type().String())
+
+	/* sha */
+
+	queryJson, err := marshalAttrValueToJSON(config.Query.UnderlyingValue())
+	if err != nil {
+		println(err.Error())
+	}
+	// fmt.Println(string(queryJson))
+	/* end sha */
+
+	/*
+		// TODO: Assert that value is of type tftypes.Object
+		object := value.Type().(tftypes.Object)
+		queryJson, err := marshalObject(object)
+		if err != nil {
+			println(err.Error())
+		}
+		println(string(queryJson))
+	*/
+
+	// TODO: interface{} vs any
+	/*var query map[string]tftypes.Value
+
+	err = value.As(&query)
+	if err != nil {
+		// TODO: Handle error
+		println(err.Error())
+	}*/
+
+	// diags = tfsdk.ValueAs(ctx, value, &query)
+	// panic(value)
+
+	// diags = config.Query.UnderlyingValue()
+
+	//.ElementsAs(ctx, &query, false)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
 
-	filteredQuery := make(map[string]string)
+	/*filteredQuery := make(map[string]string)
 	for key, value := range query {
 		// Preserve v2.2.3 and earlier behavior of filtering whole map elements
 		// with null values.
@@ -150,9 +202,11 @@ func (n *externalDataSource) Read(ctx context.Context, req datasource.ReadReques
 		}
 
 		filteredQuery[key] = value.ValueString()
-	}
+	}*/
 
-	queryJson, err := json.Marshal(filteredQuery)
+	/*queryJson, err := json.Marshal(value)
+	println(queryJson)*/
+
 	if err != nil {
 		resp.Diagnostics.AddAttributeError(
 			path.Root("query"),
@@ -282,10 +336,90 @@ If the error is unclear, the output can be viewed by enabling Terraform's loggin
 	resp.Diagnostics.Append(diags...)
 }
 
+func marshalNestedAttrValue(val attr.Value) (interface{}, error) {
+	switch v := val.(type) {
+	case types.String:
+		return v.ValueString(), nil
+	case types.Int64:
+		return v.ValueInt64(), nil
+	case types.Float64:
+		return v.ValueFloat64(), nil
+	case types.Bool:
+		return v.ValueBool(), nil
+	case types.List:
+		var list []interface{}
+		diags := v.ElementsAs(context.Background(), &list, false)
+		if diags.HasError() {
+			return nil, fmt.Errorf("error converting list: %v", diags)
+		}
+		return marshalNestedSlice(list)
+	/*case types.Map:
+	var m map[string]interface{}
+	diags := v.ElementsAs(context.Background(), &m, false)
+	if diags.HasError() {
+		return nil, fmt.Errorf("error converting map: %v", diags)
+	}
+	return marshalNestedMap(m)*/
+	case types.Object:
+		// var obj map[string]interface{}
+		attributes := v.Attributes()
+
+		return marshalNestedMap(attributes)
+
+		/*diags := v.As(context.Background(), &obj, basetypes.ObjectAsOptions{})
+		if diags.HasError() {
+			return nil, fmt.Errorf("error converting object: %v", diags)
+		}
+		return marshalNestedMap(obj)*/
+	default:
+		return nil, fmt.Errorf("unsupported type: %T", v)
+	}
+}
+
+func marshalNestedSlice(slice []interface{}) ([]interface{}, error) {
+	result := make([]interface{}, len(slice))
+	for i, v := range slice {
+		if nestedVal, ok := v.(attr.Value); ok {
+			marshaledVal, err := marshalNestedAttrValue(nestedVal)
+			if err != nil {
+				return nil, err
+			}
+			result[i] = marshaledVal
+		} else {
+			result[i] = v
+		}
+	}
+	return result, nil
+}
+
+func marshalNestedMap(m map[string]attr.Value) (map[string]interface{}, error) {
+	result := make(map[string]interface{})
+	for k, v := range m {
+		if nestedVal, ok := v.(attr.Value); ok {
+			marshaledVal, err := marshalNestedAttrValue(nestedVal)
+			if err != nil {
+				return nil, err
+			}
+			result[k] = marshaledVal
+		} else {
+			result[k] = v
+		}
+	}
+	return result, nil
+}
+
+func marshalAttrValueToJSON(val attr.Value) ([]byte, error) {
+	marshaledVal, err := marshalNestedAttrValue(val)
+	if err != nil {
+		return nil, err
+	}
+	return json.Marshal(marshaledVal)
+}
+
 type externalDataSourceModelV0 struct {
-	Program    types.List   `tfsdk:"program"`
-	WorkingDir types.String `tfsdk:"working_dir"`
-	Query      types.Map    `tfsdk:"query"`
-	Result     types.Map    `tfsdk:"result"`
-	ID         types.String `tfsdk:"id"`
+	Program    types.List    `tfsdk:"program"`
+	WorkingDir types.String  `tfsdk:"working_dir"`
+	Query      types.Dynamic `tfsdk:"query"`
+	Result     types.Map     `tfsdk:"result"`
+	ID         types.String  `tfsdk:"id"`
 }
