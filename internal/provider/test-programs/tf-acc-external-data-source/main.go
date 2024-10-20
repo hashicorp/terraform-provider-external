@@ -23,7 +23,7 @@ func main() {
 		panic(err)
 	}
 
-	var query map[string]*interface{}
+	var query map[string]interface{}
 	err = json.Unmarshal(queryBytes, &query)
 	if err != nil {
 		panic(err)
@@ -41,7 +41,7 @@ func main() {
 
 	if queryValue, ok := query["value"]; ok && queryValue != nil {
 		// Only set value if query["value"] is a string
-		if queryValue, ok := (*queryValue).(string); ok {
+		if queryValue, ok := queryValue.(string); ok {
 			result["query_value"] = queryValue
 		}
 	}
@@ -51,7 +51,7 @@ func main() {
 	}
 
 	for queryKey, queryValue := range query {
-		if queryValue, ok := (*queryValue).(string); ok {
+		if queryValue, ok := queryValue.(string); ok {
 			result[queryKey] = queryValue
 		}
 	}
