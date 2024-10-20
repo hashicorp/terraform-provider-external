@@ -9,6 +9,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"math/big"
 	"os/exec"
 	"runtime"
 	"strings"
@@ -264,26 +265,10 @@ func marshalNestedAttrValue(val attr.Value) (interface{}, error) {
 	switch v := val.(type) {
 	case types.String:
 		return v.ValueString(), nil
-	case types.Int64:
-		return v.ValueInt64(), nil
-	case types.Float64:
-		return v.ValueFloat64(), nil
+	case types.Number:
+		return marshalNumber(*v.ValueBigFloat()), nil
 	case types.Bool:
 		return v.ValueBool(), nil
-	case types.List:
-		var list []interface{}
-		diags := v.ElementsAs(context.Background(), &list, false)
-		if diags.HasError() {
-			return nil, fmt.Errorf("error converting list: %v", diags)
-		}
-		return marshalNestedSlice(list)
-	/*case types.Map:
-	var m map[string]interface{}
-	diags := v.ElementsAs(context.Background(), &m, false)
-	if diags.HasError() {
-		return nil, fmt.Errorf("error converting map: %v", diags)
-	}
-	return marshalNestedMap(m)*/
 	case types.Tuple:
 		return marshalTuple(v.Elements())
 	case types.Object:
@@ -291,6 +276,16 @@ func marshalNestedAttrValue(val attr.Value) (interface{}, error) {
 	default:
 		return nil, fmt.Errorf("unsupported type: %T", v)
 	}
+}
+
+func marshalNumber(number big.Float) interface{} {
+	if number.IsInt() {
+		intValue, _ := number.Int(nil)
+		return intValue
+	}
+
+	floatValue, _ := number.Float64()
+	return floatValue
 }
 
 func marshalTuple(tuple []attr.Value) ([]interface{}, error) {

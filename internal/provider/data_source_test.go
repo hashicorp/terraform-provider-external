@@ -286,7 +286,7 @@ func TestDataSource_Query_NestedObject(t *testing.T) {
 	})
 }
 
-func TestDataSource_Query_NestedList(t *testing.T) {
+func TestDataSource_Query_NestedTuple(t *testing.T) {
 	programPath, err := buildDataSourceTestProgram()
 	if err != nil {
 		t.Fatal(err)
@@ -311,6 +311,41 @@ func TestDataSource_Query_NestedList(t *testing.T) {
 						"data.external.test",
 						"result.serialized_query",
 						`{"items":["Item 1","Item 2"]}`,
+					),
+				),
+			},
+		},
+	})
+}
+
+func TestDataSource_Query_PrimitiveTypes(t *testing.T) {
+	programPath, err := buildDataSourceTestProgram()
+	if err != nil {
+		t.Fatal(err)
+		return
+	}
+
+	resource.UnitTest(t, resource.TestCase{
+		ProtoV5ProviderFactories: protoV5ProviderFactories(),
+		Steps: []resource.TestStep{
+			{
+				Config: fmt.Sprintf(`
+					data "external" "test" {
+						program = [%[1]q]
+
+						query = {
+							string = "John Doe"
+							integer = 42
+							float = 3.14
+							boolean = true
+						}
+					}
+				`, programPath),
+				Check: resource.ComposeAggregateTestCheckFunc(
+					resource.TestCheckResourceAttr(
+						"data.external.test",
+						"result.serialized_query",
+						`{"boolean":true,"float":3.14,"integer":42,"string":"John Doe"}`,
 					),
 				),
 			},
