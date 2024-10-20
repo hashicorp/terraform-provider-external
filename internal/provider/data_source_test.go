@@ -353,6 +353,43 @@ func TestDataSource_Query_PrimitiveTypes(t *testing.T) {
 	})
 }
 
+func TestDataSource_Query_CollectionTypes(t *testing.T) {
+	programPath, err := buildDataSourceTestProgram()
+	if err != nil {
+		t.Fatal(err)
+		return
+	}
+
+	resource.UnitTest(t, resource.TestCase{
+		ProtoV5ProviderFactories: protoV5ProviderFactories(),
+		Steps: []resource.TestStep{
+			{
+				Config: fmt.Sprintf(`
+					data "external" "test" {
+						program = [%[1]q]
+
+						query = {
+							list = tolist([1, 2, 3])
+							map = tomap({
+								a = "1"
+								b = "2"
+							})
+							set = toset([1,2,2,3])
+						}
+					}
+				`, programPath),
+				Check: resource.ComposeAggregateTestCheckFunc(
+					resource.TestCheckResourceAttr(
+						"data.external.test",
+						"result.serialized_query",
+						`{"list":[1,2,3],"map":{"a":"1","b":"2"},"set":[1,2,3]}`,
+					),
+				),
+			},
+		},
+	})
+}
+
 func TestDataSource_CurrentDir(t *testing.T) {
 	programPath, err := buildDataSourceTestProgram()
 	if err != nil {

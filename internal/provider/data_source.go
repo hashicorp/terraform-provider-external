@@ -271,8 +271,14 @@ func marshalNestedAttrValue(val attr.Value) (interface{}, error) {
 		return v.ValueBool(), nil
 	case types.Tuple:
 		return marshalTuple(v.Elements())
+	case types.List:
+		return marshalTuple(v.Elements())
+	case types.Set:
+		return marshalTuple(v.Elements())
 	case types.Object:
 		return marshalObject(v.Attributes())
+	case types.Map:
+		return marshalObject(v.Elements())
 	default:
 		return nil, fmt.Errorf("unsupported type: %T", v)
 	}
