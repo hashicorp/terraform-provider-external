@@ -77,7 +77,6 @@ func (n *externalDataSource) Schema(ctx context.Context, req datasource.SchemaRe
 				// TODO: Update description
 				Description: "A map of string values to pass to the external program as the query " +
 					"arguments. If not supplied, the program will receive an empty object as its input.",
-				// ElementType: types,
 				Optional: true,
 			},
 
@@ -130,82 +129,7 @@ func (n *externalDataSource) Read(ctx context.Context, req datasource.ReadReques
 		return
 	}
 
-	// var query map[string]types.Dynamic
-
-	// optional logic for handling null value
-	/*if data.ExampleAttribute.IsNull() {
-	      // ...
-	  }
-
-	  // optional logic for handling unknown value
-	  if data.ExampleAttribute.IsUnknown() {
-	      // ...
-	  }*/
-
-	//  TODO: Handle error
-	// value, _ := config.Query.UnderlyingValue().ToTerraformValue(ctx) //.(types.Object)
-
-	// isKnown := value.IsKnown()
-	// println(isKnown)
-	// println(value.Type().String())
-
-	/* sha */
-
 	queryJson, err := marshalAttrValueToJSON(config.Query.UnderlyingValue())
-	if err != nil {
-		println(err.Error())
-	}
-	// fmt.Println(string(queryJson))
-	/* end sha */
-
-	/*
-		// TODO: Assert that value is of type tftypes.Object
-		object := value.Type().(tftypes.Object)
-		queryJson, err := marshalObject(object)
-		if err != nil {
-			println(err.Error())
-		}
-		println(string(queryJson))
-	*/
-
-	// TODO: interface{} vs any
-	/*var query map[string]tftypes.Value
-
-	err = value.As(&query)
-	if err != nil {
-		// TODO: Handle error
-		println(err.Error())
-	}*/
-
-	// diags = tfsdk.ValueAs(ctx, value, &query)
-	// panic(value)
-
-	// diags = config.Query.UnderlyingValue()
-
-	//.ElementsAs(ctx, &query, false)
-	resp.Diagnostics.Append(diags...)
-	if resp.Diagnostics.HasError() {
-		return
-	}
-
-	/*filteredQuery := make(map[string]string)
-	for key, value := range query {
-		// Preserve v2.2.3 and earlier behavior of filtering whole map elements
-		// with null values.
-		// Reference: https://github.com/hashicorp/terraform-provider-external/issues/208
-		//
-		// The external program protocol could be updated to support null values
-		// as a breaking change by marshaling map[string]*string to JSON.
-		// Reference: https://github.com/hashicorp/terraform-provider-external/issues/209
-		if value.IsNull() {
-			continue
-		}
-
-		filteredQuery[key] = value.ValueString()
-	}*/
-
-	/*queryJson, err := json.Marshal(value)
-	println(queryJson)*/
 
 	if err != nil {
 		resp.Diagnostics.AddAttributeError(
