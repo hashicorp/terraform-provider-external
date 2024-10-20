@@ -23,7 +23,7 @@ func main() {
 		panic(err)
 	}
 
-	var query map[string]*string
+	var query map[string]*interface{}
 	err = json.Unmarshal(queryBytes, &query)
 	if err != nil {
 		panic(err)
@@ -35,11 +35,15 @@ func main() {
 	}
 
 	var result = map[string]string{
-		"result": "yes",
+		"result":           "yes",
+		"serialized_query": string(queryBytes),
 	}
 
 	if queryValue, ok := query["value"]; ok && queryValue != nil {
-		result["query_value"] = *queryValue
+		// Only set value if query["value"] is a string
+		if queryValue, ok := (*queryValue).(string); ok {
+			result["query_value"] = queryValue
+		}
 	}
 
 	if len(os.Args) >= 2 {
@@ -47,8 +51,8 @@ func main() {
 	}
 
 	for queryKey, queryValue := range query {
-		if queryValue != nil {
-			result[queryKey] = *queryValue
+		if queryValue, ok := (*queryValue).(string); ok {
+			result[queryKey] = queryValue
 		}
 	}
 

@@ -251,6 +251,73 @@ func TestDataSource_Query_NullElementValue(t *testing.T) {
 	})
 }
 
+func TestDataSource_Query_NestedObject(t *testing.T) {
+	programPath, err := buildDataSourceTestProgram()
+	if err != nil {
+		t.Fatal(err)
+		return
+	}
+
+	resource.UnitTest(t, resource.TestCase{
+		ProtoV5ProviderFactories: protoV5ProviderFactories(),
+		Steps: []resource.TestStep{
+			{
+				Config: fmt.Sprintf(`
+					data "external" "test" {
+						program = [%[1]q]
+
+						query = {
+							mapping = {
+								name = "John Doe"
+								date_of_birth = "1942/04/02"
+							},
+						}
+					}
+				`, programPath),
+				Check: resource.ComposeAggregateTestCheckFunc(
+					resource.TestCheckResourceAttr(
+						"data.external.test",
+						"result.serialized_query",
+						`{"mapping":{"date_of_birth":"1942/04/02","name":"John Doe"}}`,
+					),
+				),
+			},
+		},
+	})
+}
+
+func TestDataSource_Query_NestedList(t *testing.T) {
+	programPath, err := buildDataSourceTestProgram()
+	if err != nil {
+		t.Fatal(err)
+		return
+	}
+
+	resource.UnitTest(t, resource.TestCase{
+		ProtoV5ProviderFactories: protoV5ProviderFactories(),
+		Steps: []resource.TestStep{
+			{
+				Config: fmt.Sprintf(`
+					data "external" "test" {
+						program = [%[1]q]
+
+						query = {
+							items = ["Item 1", "Item 2"]
+						}
+					}
+				`, programPath),
+				Check: resource.ComposeAggregateTestCheckFunc(
+					resource.TestCheckResourceAttr(
+						"data.external.test",
+						"result.serialized_query",
+						`{"items":["Item 1","Item 2"]}`,
+					),
+				),
+			},
+		},
+	})
+}
+
 func TestDataSource_CurrentDir(t *testing.T) {
 	programPath, err := buildDataSourceTestProgram()
 	if err != nil {

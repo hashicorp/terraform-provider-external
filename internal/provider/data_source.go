@@ -284,23 +284,16 @@ func marshalNestedAttrValue(val attr.Value) (interface{}, error) {
 		return nil, fmt.Errorf("error converting map: %v", diags)
 	}
 	return marshalNestedMap(m)*/
+	case types.Tuple:
+		return marshalTuple(v.Elements())
 	case types.Object:
-		// var obj map[string]interface{}
-		attributes := v.Attributes()
-
-		return marshalNestedMap(attributes)
-
-		/*diags := v.As(context.Background(), &obj, basetypes.ObjectAsOptions{})
-		if diags.HasError() {
-			return nil, fmt.Errorf("error converting object: %v", diags)
-		}
-		return marshalNestedMap(obj)*/
+		return marshalObject(v.Attributes())
 	default:
 		return nil, fmt.Errorf("unsupported type: %T", v)
 	}
 }
 
-func marshalNestedSlice(slice []interface{}) ([]interface{}, error) {
+func marshalTuple(slice []attr.Value) ([]interface{}, error) {
 	result := make([]interface{}, len(slice))
 	for i, v := range slice {
 		if nestedVal, ok := v.(attr.Value); ok {
@@ -316,7 +309,7 @@ func marshalNestedSlice(slice []interface{}) ([]interface{}, error) {
 	return result, nil
 }
 
-func marshalNestedMap(m map[string]attr.Value) (map[string]interface{}, error) {
+func marshalObject(m map[string]attr.Value) (map[string]interface{}, error) {
 	result := make(map[string]interface{})
 	for k, v := range m {
 		// Preserve v2.2.3 and earlier behavior of filtering whole map elements
