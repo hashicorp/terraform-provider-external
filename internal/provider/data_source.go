@@ -293,18 +293,14 @@ func marshalNestedAttrValue(val attr.Value) (interface{}, error) {
 	}
 }
 
-func marshalTuple(slice []attr.Value) ([]interface{}, error) {
-	result := make([]interface{}, len(slice))
-	for i, v := range slice {
-		if nestedVal, ok := v.(attr.Value); ok {
-			marshaledVal, err := marshalNestedAttrValue(nestedVal)
-			if err != nil {
-				return nil, err
-			}
-			result[i] = marshaledVal
-		} else {
-			result[i] = v
+func marshalTuple(tuple []attr.Value) ([]interface{}, error) {
+	result := make([]interface{}, len(tuple))
+	for i, v := range tuple {
+		marshaledVal, err := marshalNestedAttrValue(v)
+		if err != nil {
+			return nil, err
 		}
+		result[i] = marshaledVal
 	}
 	return result, nil
 }
