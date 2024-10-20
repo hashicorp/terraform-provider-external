@@ -319,15 +319,23 @@ func marshalNestedSlice(slice []interface{}) ([]interface{}, error) {
 func marshalNestedMap(m map[string]attr.Value) (map[string]interface{}, error) {
 	result := make(map[string]interface{})
 	for k, v := range m {
-		if nestedVal, ok := v.(attr.Value); ok {
-			marshaledVal, err := marshalNestedAttrValue(nestedVal)
-			if err != nil {
-				return nil, err
-			}
-			result[k] = marshaledVal
-		} else {
-			result[k] = v
+		// Preserve v2.2.3 and earlier behavior of filtering whole map elements
+		// with null values.
+		// Reference: https://github.com/hashicorp/terraform-provider-external/issues/208
+		//
+		// The external program protocol could be updated to support null values
+		// as a breaking change by marshaling map[string]*string to JSON.
+		// Reference: https://github.com/hashicorp/terraform-provider-external/issues/209
+		if v.IsNull() {
+			continue
 		}
+
+		marshaledVal, err := marshalNestedAttrValue(v)
+		if err != nil {
+			return nil, err
+		}
+		result[k] = marshaledVal
+
 	}
 	return result, nil
 }
