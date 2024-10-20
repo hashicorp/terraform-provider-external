@@ -341,6 +341,11 @@ func marshalNestedMap(m map[string]attr.Value) (map[string]interface{}, error) {
 }
 
 func marshalAttrValueToJSON(val attr.Value) ([]byte, error) {
+	if val == nil || val.IsNull() {
+		emptyMap := make(map[string]interface{})
+		return json.Marshal(emptyMap)
+	}
+
 	marshaledVal, err := marshalNestedAttrValue(val)
 	if err != nil {
 		return nil, err
