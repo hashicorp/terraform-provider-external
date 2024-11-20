@@ -9,11 +9,13 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"math/big"
 	"os/exec"
 	"runtime"
 	"strings"
 
 	"github.com/hashicorp/terraform-plugin-framework-validators/listvalidator"
+	"github.com/hashicorp/terraform-plugin-framework/attr"
 	"github.com/hashicorp/terraform-plugin-framework/datasource"
 	"github.com/hashicorp/terraform-plugin-framework/datasource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/path"
@@ -72,11 +74,11 @@ func (n *externalDataSource) Schema(ctx context.Context, req datasource.SchemaRe
 				Optional: true,
 			},
 
-			"query": schema.MapAttribute{
+			"query": schema.DynamicAttribute{
+				// TODO: Update description
 				Description: "A map of string values to pass to the external program as the query " +
 					"arguments. If not supplied, the program will receive an empty object as its input.",
-				ElementType: types.StringType,
-				Optional:    true,
+				Optional: true,
 			},
 
 			"result": schema.MapAttribute{
@@ -128,31 +130,8 @@ func (n *externalDataSource) Read(ctx context.Context, req datasource.ReadReques
 		return
 	}
 
-	var query map[string]types.String
+	queryJson, err := marshalAttrValueToJSON(config.Query.UnderlyingValue())
 
-	diags = config.Query.ElementsAs(ctx, &query, false)
-	resp.Diagnostics.Append(diags...)
-	if resp.Diagnostics.HasError() {
-		return
-	}
-
-	filteredQuery := make(map[string]string)
-	for key, value := range query {
-		// Preserve v2.2.3 and earlier behavior of filtering whole map elements
-		// with null values.
-		// Reference: https://github.com/hashicorp/terraform-provider-external/issues/208
-		//
-		// The external program protocol could be updated to support null values
-		// as a breaking change by marshaling map[string]*string to JSON.
-		// Reference: https://github.com/hashicorp/terraform-provider-external/issues/209
-		if value.IsNull() {
-			continue
-		}
-
-		filteredQuery[key] = value.ValueString()
-	}
-
-	queryJson, err := json.Marshal(filteredQuery)
 	if err != nil {
 		resp.Diagnostics.AddAttributeError(
 			path.Root("query"),
@@ -282,10 +261,92 @@ If the error is unclear, the output can be viewed by enabling Terraform's loggin
 	resp.Diagnostics.Append(diags...)
 }
 
+func marshalNestedAttrValue(val attr.Value) (interface{}, error) {
+	switch v := val.(type) {
+	case types.String:
+		return v.ValueString(), nil
+	case types.Number:
+		return marshalNumber(*v.ValueBigFloat()), nil
+	case types.Bool:
+		return v.ValueBool(), nil
+	case types.Tuple:
+		return marshalTuple(v.Elements())
+	case types.List:
+		return marshalTuple(v.Elements())
+	case types.Set:
+		return marshalTuple(v.Elements())
+	case types.Object:
+		return marshalObject(v.Attributes())
+	case types.Map:
+		return marshalObject(v.Elements())
+	default:
+		return nil, fmt.Errorf("unsupported type: %T", v)
+	}
+}
+
+func marshalNumber(number big.Float) interface{} {
+	if number.IsInt() {
+		intValue, _ := number.Int(nil)
+		return intValue
+	}
+
+	floatValue, _ := number.Float64()
+	return floatValue
+}
+
+func marshalTuple(tuple []attr.Value) ([]interface{}, error) {
+	result := make([]interface{}, len(tuple))
+	for i, v := range tuple {
+		marshaledVal, err := marshalNestedAttrValue(v)
+		if err != nil {
+			return nil, err
+		}
+		result[i] = marshaledVal
+	}
+	return result, nil
+}
+
+func marshalObject(m map[string]attr.Value) (map[string]interface{}, error) {
+	result := make(map[string]interface{})
+	for k, v := range m {
+		// Preserve v2.2.3 and earlier behavior of filtering whole map elements
+		// with null values.
+		// Reference: https://github.com/hashicorp/terraform-provider-external/issues/208
+		//
+		// The external program protocol could be updated to support null values
+		// as a breaking change by marshaling map[string]*string to JSON.
+		// Reference: https://github.com/hashicorp/terraform-provider-external/issues/209
+		if v.IsNull() {
+			continue
+		}
+
+		marshaledVal, err := marshalNestedAttrValue(v)
+		if err != nil {
+			return nil, err
+		}
+		result[k] = marshaledVal
+
+	}
+	return result, nil
+}
+
+func marshalAttrValueToJSON(val attr.Value) ([]byte, error) {
+	if val == nil || val.IsNull() {
+		emptyMap := make(map[string]interface{})
+		return json.Marshal(emptyMap)
+	}
+
+	marshaledVal, err := marshalNestedAttrValue(val)
+	if err != nil {
+		return nil, err
+	}
+	return json.Marshal(marshaledVal)
+}
+
 type externalDataSourceModelV0 struct {
-	Program    types.List   `tfsdk:"program"`
-	WorkingDir types.String `tfsdk:"working_dir"`
-	Query      types.Map    `tfsdk:"query"`
-	Result     types.Map    `tfsdk:"result"`
-	ID         types.String `tfsdk:"id"`
+	Program    types.List    `tfsdk:"program"`
+	WorkingDir types.String  `tfsdk:"working_dir"`
+	Query      types.Dynamic `tfsdk:"query"`
+	Result     types.Map     `tfsdk:"result"`
+	ID         types.String  `tfsdk:"id"`
 }
