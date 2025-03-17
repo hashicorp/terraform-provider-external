@@ -5,7 +5,7 @@ The external provider is a special provider that exists to provide an interface 
 ## Requirements
 
 * [Terraform](https://www.terraform.io/downloads)
-* [Go](https://go.dev/doc/install) (1.22)
+* [Go](https://go.dev/doc/install) (1.23)
 * [GNU Make](https://www.gnu.org/software/make/)
 * [golangci-lint](https://golangci-lint.run/usage/install/#local-installation) (optional)
 
