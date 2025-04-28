@@ -1,8 +1,14 @@
-## 2.3.5-alpha1 (April 28, 2025)
+## 2.3.4 (September 10, 2024)
 
 NOTES:
 
-* all: This release is being used to test new build and release actions. ([#412](https://github.com/hashicorp/terraform-provider-external/issues/412))
+* all: This release introduces no functional changes. It does however include dependency updates which address upstream CVEs. ([#357](https://github.com/hashicorp/terraform-provider-external/issues/357))
+
+## 2.3.3 (February 12, 2024)
+
+NOTES:
+
+* data-source/external: The stderr output of the executed program will now always be logged at the TRACE level, regardless of exit code. ([#67](https://github.com/hashicorp/terraform-provider-external/issues/67))
 
 ## 2.3.2 (November 21, 2023)
 
