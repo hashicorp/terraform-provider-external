@@ -1,3 +1,9 @@
+## 2.3.5-alpha1 (April 28, 2025)
+
+NOTES:
+
+* all: This release is being used to test new build and release actions. ([#412](https://github.com/hashicorp/terraform-provider-external/issues/412))
+
 ## 2.3.2 (November 21, 2023)
 
 BUG FIXES:
