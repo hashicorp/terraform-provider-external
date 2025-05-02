@@ -1,3 +1,9 @@
+## 2.3.5 (May 01, 2025)
+
+NOTES:
+
+* Update dependencies  ([#411](https://github.com/hashicorp/terraform-provider-external/issues/411))
+
 ## 2.3.5-alpha1 (April 28, 2025)
 
 NOTES:
