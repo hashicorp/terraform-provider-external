@@ -1,0 +1,10 @@
+---
+schema: 1.1
+
+partition: tf-ecosystem
+
+summary:
+  owner: team-tf-core-plugins
+  description: |
+    Utility provider that exists to provide an interface between Terraform and external programs. Useful for integrating Terraform with a system for which a first-class provider does not exist.
+  visibility: public
