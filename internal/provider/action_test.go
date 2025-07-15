@@ -1,0 +1,273 @@
+// Copyright (c) HashiCorp, Inc.
+// SPDX-License-Identifier: MPL-2.0
+
+package provider
+
+import (
+	"context"
+	"slices"
+	"testing"
+
+	"github.com/google/go-cmp/cmp"
+	"github.com/hashicorp/terraform-plugin-framework/action"
+	"github.com/hashicorp/terraform-plugin-framework/providerserver"
+	"github.com/hashicorp/terraform-plugin-go/tfprotov5"
+	"github.com/hashicorp/terraform-plugin-go/tftypes"
+)
+
+// NOTE: This test has a lot of hardcoded expectations for my specific machine, see TODO:Works_On_My_Machine comments.
+func TestAction_basic(t *testing.T) {
+	ctx := context.Background()
+
+	programPath, err := buildDataSourceTestProgram()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	actionTypeName := "external"
+	externalProvider := GetExternalProvider(t)
+	actionConfigType := GetExternalActionSchemaType(t, ctx)
+	InitializeProvider(t, ctx, externalProvider)
+
+	testCases := map[string]struct {
+		config               map[string]tftypes.Value
+		expectedPlanResp     tfprotov5.PlanActionResponse
+		expectedInvokeEvents []tfprotov5.InvokeActionEvent
+	}{
+		"test-invalid-config": {
+			// terraform-plugin-go equivalent of:
+			//
+			// action "external" "test" {
+			//   config = {
+			//     program = []
+			//   }
+			// }
+			//
+			config: map[string]tftypes.Value{
+				"program": tftypes.NewValue(
+					tftypes.List{ElementType: tftypes.String},
+					[]tftypes.Value{},
+				),
+				"query":       tftypes.NewValue(tftypes.Map{ElementType: tftypes.String}, nil),
+				"working_dir": tftypes.NewValue(tftypes.String, nil),
+			},
+			expectedPlanResp: tfprotov5.PlanActionResponse{
+				Diagnostics: []*tfprotov5.Diagnostic{
+					{
+						Severity:  tfprotov5.DiagnosticSeverityError,
+						Summary:   "External Program Missing",
+						Detail:    "The action was configured without a program to execute. Verify the configuration contains at least one non-empty value.",
+						Attribute: tftypes.NewAttributePath().WithAttributeName("program"),
+					},
+				},
+			},
+		},
+		"test-go-program": {
+			// terraform-plugin-go equivalent of:
+			//
+			// action "external" "test" {
+			//   config = {
+			//     program = ["<programPath>", "cheese"]
+			//
+			//     query = {
+			//       value = "pizza"
+			//     }
+			//   }
+			// }
+			//
+			config: map[string]tftypes.Value{
+				"program": tftypes.NewValue(
+					tftypes.List{ElementType: tftypes.String},
+					[]tftypes.Value{
+						tftypes.NewValue(tftypes.String, programPath),
+						tftypes.NewValue(tftypes.String, "cheese"),
+					},
+				),
+				"query": tftypes.NewValue(
+					tftypes.Map{ElementType: tftypes.String},
+					map[string]tftypes.Value{
+						"value": tftypes.NewValue(tftypes.String, "pizza"),
+					},
+				),
+				"working_dir": tftypes.NewValue(tftypes.String, nil),
+			},
+			expectedPlanResp: tfprotov5.PlanActionResponse{},
+			expectedInvokeEvents: []tfprotov5.InvokeActionEvent{
+				{
+					Type: tfprotov5.ProgressInvokeActionEventType{
+						Message: `Executing external program "/Users/austin.valle/go/bin/tf-acc-external-data-source cheese"`, // TODO:Works_On_My_Machine
+					},
+				},
+				{
+					Type: tfprotov5.ProgressInvokeActionEventType{
+						Message: `Output: {"argument":"cheese","query_value":"pizza","result":"yes","value":"pizza"}`,
+					},
+				},
+				{
+					Type: tfprotov5.CompletedInvokeActionEventType{},
+				},
+			},
+		},
+		"test-curl": {
+			// terraform-plugin-go equivalent of:
+			//
+			// action "external" "test" {
+			//   config = {
+			//     program = ["curl", "https://checkpoint-api.hashicorp.com/v1/check/terraform"]
+			//   }
+			// }
+			//
+			config: map[string]tftypes.Value{
+				"program": tftypes.NewValue(
+					tftypes.List{ElementType: tftypes.String},
+					[]tftypes.Value{
+						tftypes.NewValue(tftypes.String, "curl"),
+						tftypes.NewValue(tftypes.String, "https://checkpoint-api.hashicorp.com/v1/check/terraform"),
+					},
+				),
+				"query":       tftypes.NewValue(tftypes.Map{ElementType: tftypes.String}, nil),
+				"working_dir": tftypes.NewValue(tftypes.String, nil),
+			},
+			expectedPlanResp: tfprotov5.PlanActionResponse{},
+			expectedInvokeEvents: []tfprotov5.InvokeActionEvent{
+				{
+					Type: tfprotov5.ProgressInvokeActionEventType{
+						Message: `Executing external program "/usr/bin/curl https://checkpoint-api.hashicorp.com/v1/check/terraform"`,
+					},
+				},
+				{
+					Type: tfprotov5.ProgressInvokeActionEventType{
+						Message: `Output: {"product":"terraform","current_version":"1.12.2","current_release":1749639824,"current_download_url":"https://releases.hashicorp.com/terraform/1.12.2","current_changelog_url":"https://github.com/hashicorp/terraform/blob/v1.12/CHANGELOG.md","project_website":"https://www.terraform.io","alerts":[]}`,
+					},
+				},
+				{
+					Type: tfprotov5.CompletedInvokeActionEventType{},
+				},
+			},
+		},
+		"test-docker-version-error": {
+			// terraform-plugin-go equivalent of:
+			//
+			// action "external" "test" {
+			//   config = {
+			//     program = ["docker", "-v"]
+			//   }
+			// }
+			//
+			config: map[string]tftypes.Value{
+				"program": tftypes.NewValue(
+					tftypes.List{ElementType: tftypes.String},
+					[]tftypes.Value{
+						tftypes.NewValue(tftypes.String, "docker"),
+						tftypes.NewValue(tftypes.String, "-v"),
+					},
+				),
+				"query":       tftypes.NewValue(tftypes.Map{ElementType: tftypes.String}, nil),
+				"working_dir": tftypes.NewValue(tftypes.String, nil),
+			},
+			expectedPlanResp: tfprotov5.PlanActionResponse{},
+			expectedInvokeEvents: []tfprotov5.InvokeActionEvent{
+				{
+					Type: tfprotov5.ProgressInvokeActionEventType{
+						Message: `Executing external program "/usr/local/bin/docker -v"`, // TODO:Works_On_My_Machine
+					},
+				},
+				{
+					Type: tfprotov5.ProgressInvokeActionEventType{
+						Message: "Output: Docker version 27.4.0, build bde2b89\n", // TODO:Works_On_My_Machine
+					},
+				},
+				{
+					Type: tfprotov5.CompletedInvokeActionEventType{},
+				},
+			},
+		},
+	}
+	for name, tc := range testCases {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+
+			testProgramConfig, err := tfprotov5.NewDynamicValue(actionConfigType, tftypes.NewValue(actionConfigType, tc.config))
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			planResp, err := externalProvider.PlanAction(ctx, &tfprotov5.PlanActionRequest{
+				ActionType: actionTypeName,
+				Config:     &testProgramConfig,
+			})
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			if diff := cmp.Diff(*planResp, tc.expectedPlanResp); diff != "" {
+				t.Errorf("unexpected difference: %s", diff)
+			}
+
+			// Don't invoke if we had diagnostics during plan
+			if len(planResp.Diagnostics) > 0 {
+				return
+			}
+
+			invokeResp, err := externalProvider.InvokeAction(ctx, &tfprotov5.InvokeActionRequest{
+				ActionType: actionTypeName,
+				Config:     &testProgramConfig,
+			})
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			// Grab all the events
+			events := slices.Collect(invokeResp.Events)
+			if diff := cmp.Diff(events, tc.expectedInvokeEvents); diff != "" {
+				t.Errorf("unexpected difference: %s", diff)
+			}
+		})
+	}
+}
+
+func GetExternalProvider(t *testing.T) tfprotov5.ProviderServerWithActions {
+	t.Helper()
+
+	provider, err := providerserver.NewProtocol5WithError(New())()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	return provider.(tfprotov5.ProviderServerWithActions)
+}
+
+func GetExternalActionSchemaType(t *testing.T, ctx context.Context) tftypes.Type {
+	t.Helper()
+
+	actionSchemaResp := action.SchemaResponse{}
+	NewExternalAction().Schema(ctx, action.SchemaRequest{}, &actionSchemaResp)
+
+	return actionSchemaResp.Schema.Type().TerraformType(ctx)
+}
+
+func InitializeProvider(t *testing.T, ctx context.Context, externalProvider tfprotov5.ProviderServer) {
+	t.Helper()
+
+	// Just for show in our case here, since the external provider isn't muxed, so technically you could skip this.
+	// Mimicking what core will eventually do.
+	_, err := externalProvider.GetProviderSchema(ctx, &tfprotov5.GetProviderSchemaRequest{})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	nullObject, err := tfprotov5.NewDynamicValue(tftypes.Object{}, tftypes.NewValue(tftypes.Object{}, nil))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Just for show in our case here, since the external provider has no configuration.
+	// Mimicking what core will eventually do.
+	_, err = externalProvider.ConfigureProvider(ctx, &tfprotov5.ConfigureProviderRequest{
+		Config: &nullObject,
+	},
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+}

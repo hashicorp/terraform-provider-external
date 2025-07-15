@@ -220,11 +220,7 @@ The program must also be executable according to the platform where Terraform is
 
 	tflog.Trace(ctx, "Executed external program", map[string]interface{}{"program": cmd.String(), "output": string(resultJson), "stderr": stderrStr})
 	resp.SendProgress(action.InvokeProgressEvent{
-		Message: fmt.Sprintf(
-			"Executed external program %q:"+
-				"\n\nOutput: %s"+
-				"\nSTDERR: %s",
-			cmd.String(), string(resultJson), stderrStr),
+		Message: fmt.Sprintf("Output: %s", string(resultJson)),
 	})
 
 	if err != nil {
@@ -247,24 +243,6 @@ The program must also be executable according to the platform where Terraform is
 				"The program was executed, however it returned no additional error messaging."+
 				fmt.Sprintf("\n\nProgram: %s", cmd.Path)+
 				fmt.Sprintf("\nState: %s", err),
-		)
-		return
-	}
-
-	result := map[string]string{}
-	err = json.Unmarshal(resultJson, &result)
-	if err != nil {
-		resp.Diagnostics.AddAttributeError(
-			path.Root("program"),
-			"Unexpected External Program Results",
-			`The action received unexpected results after executing the program.
-
-Program output must be a JSON encoded map of string keys and string values.
-
-If the error is unclear, the output can be viewed by enabling Terraform's logging at TRACE level. Terraform documentation on logging: https://www.terraform.io/internals/debugging
-`+
-				fmt.Sprintf("\nProgram: %s", cmd.Path)+
-				fmt.Sprintf("\nResult Error: %s", err),
 		)
 		return
 	}
