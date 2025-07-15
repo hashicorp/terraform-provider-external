@@ -1,0 +1,277 @@
+// Copyright (c) HashiCorp, Inc.
+// SPDX-License-Identifier: MPL-2.0
+
+package provider
+
+import (
+	"bytes"
+	"context"
+	"encoding/json"
+	"errors"
+	"fmt"
+	"os/exec"
+	"runtime"
+	"strings"
+
+	"github.com/hashicorp/terraform-plugin-framework/action"
+	"github.com/hashicorp/terraform-plugin-framework/action/schema"
+	"github.com/hashicorp/terraform-plugin-framework/path"
+	"github.com/hashicorp/terraform-plugin-framework/types"
+	"github.com/hashicorp/terraform-plugin-log/tflog"
+)
+
+var (
+	_ action.Action               = (*externalAction)(nil)
+	_ action.ActionWithModifyPlan = (*externalAction)(nil)
+)
+
+func NewExternalAction() action.Action {
+	return &externalAction{}
+}
+
+type externalAction struct{}
+
+func (a *externalAction) Metadata(ctx context.Context, req action.MetadataRequest, resp *action.MetadataResponse) {
+	resp.TypeName = req.ProviderTypeName
+}
+
+func (a *externalAction) Schema(ctx context.Context, req action.SchemaRequest, resp *action.SchemaResponse) {
+	resp.Schema = schema.UnlinkedSchema{
+		Description: "",
+		Attributes: map[string]schema.Attribute{
+			"program": schema.ListAttribute{
+				Description: "A list of strings, whose first element is the program to run and whose " +
+					"subsequent elements are optional command line arguments to the program. Terraform does " +
+					"not execute the program through a shell, so it is not necessary to escape shell " +
+					"metacharacters nor add quotes around arguments containing spaces.",
+				ElementType: types.StringType,
+				Required:    true,
+			},
+
+			"working_dir": schema.StringAttribute{
+				Description: "Working directory of the program. If not supplied, the program will run " +
+					"in the current directory.",
+				Optional: true,
+			},
+
+			"query": schema.MapAttribute{
+				Description: "A map of string values to pass to the external program as the query " +
+					"arguments. If not supplied, the program will receive an empty object as its input.",
+				ElementType: types.StringType,
+				Optional:    true,
+			},
+		},
+	}
+}
+
+// In the data source, this validation was static in the schema and also in the "Read" method. Since there is no static validation
+// we need to validate that during plan.
+func (a *externalAction) ModifyPlan(ctx context.Context, req action.ModifyPlanRequest, resp *action.ModifyPlanResponse) {
+	var program []types.String
+	resp.Diagnostics.Append(req.Config.GetAttribute(ctx, path.Root("program"), &program)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	filteredProgram := make([]string, 0, len(program))
+
+	for _, programArgRaw := range program {
+		// Null and unknown will have empty string as the value
+		if programArgRaw.ValueString() == "" {
+			continue
+		}
+
+		filteredProgram = append(filteredProgram, programArgRaw.ValueString())
+	}
+
+	if len(filteredProgram) == 0 {
+		resp.Diagnostics.AddAttributeError(
+			path.Root("program"),
+			"External Program Missing",
+			"The action was configured without a program to execute. Verify the configuration contains at least one non-empty value.",
+		)
+		return
+	}
+}
+
+func (a *externalAction) Invoke(ctx context.Context, req action.InvokeRequest, resp *action.InvokeResponse) {
+	var config externalActionModel
+
+	resp.Diagnostics.Append(req.Config.Get(ctx, &config)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+	var program []types.String
+
+	resp.Diagnostics.Append(config.Program.ElementsAs(ctx, &program, false)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	filteredProgram := make([]string, 0, len(program))
+
+	for _, programArgRaw := range program {
+		if programArgRaw.IsNull() || programArgRaw.ValueString() == "" {
+			continue
+		}
+
+		filteredProgram = append(filteredProgram, programArgRaw.ValueString())
+	}
+
+	var query map[string]types.String
+
+	resp.Diagnostics.Append(config.Query.ElementsAs(ctx, &query, false)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	filteredQuery := make(map[string]string)
+	for key, value := range query {
+		// Preserve v2.2.3 and earlier behavior of filtering whole map elements
+		// with null values.
+		// Reference: https://github.com/hashicorp/terraform-provider-external/issues/208
+		//
+		// The external program protocol could be updated to support null values
+		// as a breaking change by marshaling map[string]*string to JSON.
+		// Reference: https://github.com/hashicorp/terraform-provider-external/issues/209
+		if value.IsNull() {
+			continue
+		}
+
+		filteredQuery[key] = value.ValueString()
+	}
+
+	queryJson, err := json.Marshal(filteredQuery)
+	if err != nil {
+		resp.Diagnostics.AddAttributeError(
+			path.Root("query"),
+			"Query Handling Failed",
+			"The action received an unexpected error while attempting to parse the query. "+
+				"This is always a bug in the external provider code and should be reported to the provider developers."+
+				fmt.Sprintf("\n\nError: %s", err),
+		)
+		return
+	}
+
+	// first element is assumed to be an executable command, possibly found
+	// using the PATH environment variable.
+	_, err = exec.LookPath(filteredProgram[0])
+
+	// This is a workaround to preserve pre-existing behaviour prior to the upgrade to Go 1.19.
+	// Reference: https://github.com/hashicorp/terraform-provider-external/pull/192
+	//
+	// This workaround will be removed once a warning is being issued to notify practitioners
+	// of a change in behaviour.
+	// Reference: https://github.com/hashicorp/terraform-provider-external/issues/197
+	if errors.Is(err, exec.ErrDot) {
+		err = nil
+	}
+
+	if err != nil {
+		resp.Diagnostics.AddAttributeError(
+			path.Root("program"),
+			"External Program Lookup Failed",
+			"The action received an unexpected error while attempting to parse the query. "+
+				`The action received an unexpected error while attempting to find the program.
+
+The program must be accessible according to the platform where Terraform is running.
+
+If the expected program should be automatically found on the platform where Terraform is running, ensure that the program is in an expected directory. On Unix-based platforms, these directories are typically searched based on the '$PATH' environment variable. On Windows-based platforms, these directories are typically searched based on the '%PATH%' environment variable.
+
+If the expected program is relative to the Terraform configuration, it is recommended that the program name includes the interpolated value of 'path.module' before the program name to ensure that it is compatible with varying module usage. For example: "${path.module}/my-program"
+
+The program must also be executable according to the platform where Terraform is running. On Unix-based platforms, the file on the filesystem must have the executable bit set. On Windows-based platforms, no action is typically necessary.
+`+
+				fmt.Sprintf("\nPlatform: %s", runtime.GOOS)+
+				fmt.Sprintf("\nProgram: %s", program[0])+
+				fmt.Sprintf("\nError: %s", err),
+		)
+		return
+	}
+
+	workingDir := config.WorkingDir.ValueString()
+
+	cmd := exec.CommandContext(ctx, filteredProgram[0], filteredProgram[1:]...)
+
+	// This is a workaround to preserve pre-existing behaviour prior to the upgrade to Go 1.19.
+	// Reference: https://github.com/hashicorp/terraform-provider-external/pull/192
+	//
+	// This workaround will be removed once a warning is being issued to notify practitioners
+	// of a change in behaviour.
+	// Reference: https://github.com/hashicorp/terraform-provider-external/issues/197
+	if errors.Is(cmd.Err, exec.ErrDot) {
+		cmd.Err = nil
+	}
+
+	cmd.Dir = workingDir
+	cmd.Stdin = bytes.NewReader(queryJson)
+
+	var stderr strings.Builder
+	cmd.Stderr = &stderr
+
+	tflog.Trace(ctx, "Executing external program", map[string]interface{}{"program": cmd.String()})
+	resp.SendProgress(action.InvokeProgressEvent{
+		Message: fmt.Sprintf("Executing external program %q", cmd.String()),
+	})
+
+	resultJson, err := cmd.Output()
+
+	stderrStr := stderr.String()
+
+	tflog.Trace(ctx, "Executed external program", map[string]interface{}{"program": cmd.String(), "output": string(resultJson), "stderr": stderrStr})
+	resp.SendProgress(action.InvokeProgressEvent{
+		Message: fmt.Sprintf(
+			"Executed external program %q:"+
+				"\n\nOutput: %s"+
+				"\nSTDERR: %s",
+			cmd.String(), string(resultJson), stderrStr),
+	})
+
+	if err != nil {
+		if len(stderrStr) > 0 {
+			resp.Diagnostics.AddAttributeError(
+				path.Root("program"),
+				"External Program Execution Failed",
+				"The action received an unexpected error while attempting to execute the program."+
+					fmt.Sprintf("\n\nProgram: %s", cmd.Path)+
+					fmt.Sprintf("\nError Message: %s", stderrStr)+
+					fmt.Sprintf("\nState: %s", err),
+			)
+			return
+		}
+
+		resp.Diagnostics.AddAttributeError(
+			path.Root("program"),
+			"External Program Execution Failed",
+			"The action received an unexpected error while attempting to execute the program.\n\n"+
+				"The program was executed, however it returned no additional error messaging."+
+				fmt.Sprintf("\n\nProgram: %s", cmd.Path)+
+				fmt.Sprintf("\nState: %s", err),
+		)
+		return
+	}
+
+	result := map[string]string{}
+	err = json.Unmarshal(resultJson, &result)
+	if err != nil {
+		resp.Diagnostics.AddAttributeError(
+			path.Root("program"),
+			"Unexpected External Program Results",
+			`The action received unexpected results after executing the program.
+
+Program output must be a JSON encoded map of string keys and string values.
+
+If the error is unclear, the output can be viewed by enabling Terraform's logging at TRACE level. Terraform documentation on logging: https://www.terraform.io/internals/debugging
+`+
+				fmt.Sprintf("\nProgram: %s", cmd.Path)+
+				fmt.Sprintf("\nResult Error: %s", err),
+		)
+		return
+	}
+}
+
+type externalActionModel struct {
+	Program    types.List   `tfsdk:"program"`
+	WorkingDir types.String `tfsdk:"working_dir"`
+	Query      types.Map    `tfsdk:"query"`
+}

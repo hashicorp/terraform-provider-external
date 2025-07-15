@@ -6,12 +6,14 @@ package provider
 import (
 	"context"
 
+	"github.com/hashicorp/terraform-plugin-framework/action"
 	"github.com/hashicorp/terraform-plugin-framework/datasource"
 	"github.com/hashicorp/terraform-plugin-framework/provider"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 )
 
 var _ provider.Provider = (*externalProvider)(nil)
+var _ provider.ProviderWithActions = (*externalProvider)(nil)
 
 func New() provider.Provider {
 	return &externalProvider{}
@@ -35,6 +37,12 @@ func (p *externalProvider) DataSources(ctx context.Context) []func() datasource.
 
 func (p *externalProvider) Resources(ctx context.Context) []func() resource.Resource {
 	return nil
+}
+
+func (p *externalProvider) Actions(ctx context.Context) []func() action.Action {
+	return []func() action.Action{
+		NewExternalAction,
+	}
 }
 
 func (p *externalProvider) Schema(context.Context, provider.SchemaRequest, *provider.SchemaResponse) {
