@@ -251,9 +251,15 @@ func InitializeProvider(t *testing.T, ctx context.Context, externalProvider tfpr
 
 	// Just for show in our case here, since the external provider isn't muxed, so technically you could skip this.
 	// Mimicking what core will eventually do.
-	_, err := externalProvider.GetProviderSchema(ctx, &tfprotov5.GetProviderSchemaRequest{})
+	schemaResp, err := externalProvider.GetProviderSchema(ctx, &tfprotov5.GetProviderSchemaRequest{})
 	if err != nil {
 		t.Fatal(err)
+	}
+
+	// NOTE: Since we already have the schema/type in the same codebase, we don't need to read the schema
+	// so this is just asserting that GetProviderSchema is actually returning the action schema as expected.
+	if len(schemaResp.ActionSchemas) == 0 {
+		t.Fatalf("expected to find action schemas and didn't find any!")
 	}
 
 	nullObject, err := tfprotov5.NewDynamicValue(tftypes.Object{}, tftypes.NewValue(tftypes.Object{}, nil))
