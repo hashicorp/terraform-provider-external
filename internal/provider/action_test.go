@@ -31,10 +31,39 @@ func TestAction_basic(t *testing.T) {
 
 	testCases := map[string]struct {
 		config               map[string]tftypes.Value
+		expectedValidateResp tfprotov5.ValidateActionConfigResponse
 		expectedPlanResp     tfprotov5.PlanActionResponse
 		expectedInvokeEvents []tfprotov5.InvokeActionEvent
 	}{
-		"test-invalid-config": {
+		"test-null-program": {
+			// terraform-plugin-go equivalent of:
+			//
+			// action "external" "test" {
+			//   config = {}
+			// }
+			//
+			config: map[string]tftypes.Value{
+				"program": tftypes.NewValue(
+					tftypes.List{ElementType: tftypes.String},
+					nil,
+				),
+				"query":       tftypes.NewValue(tftypes.Map{ElementType: tftypes.String}, nil),
+				"working_dir": tftypes.NewValue(tftypes.String, nil),
+			},
+			expectedValidateResp: tfprotov5.ValidateActionConfigResponse{
+				// Framework-defined validation error
+				Diagnostics: []*tfprotov5.Diagnostic{
+					{
+						Severity: tfprotov5.DiagnosticSeverityError,
+						Summary:  "Missing Configuration for Required Attribute",
+						Detail: "Must set a configuration value for the program attribute as the provider has marked it as required.\n\n" +
+							"Refer to the provider documentation or contact the provider developers for additional information about configurable attributes that are required.",
+						Attribute: tftypes.NewAttributePath().WithAttributeName("program"),
+					},
+				},
+			},
+		},
+		"test-empty-program": {
 			// terraform-plugin-go equivalent of:
 			//
 			// action "external" "test" {
@@ -51,12 +80,13 @@ func TestAction_basic(t *testing.T) {
 				"query":       tftypes.NewValue(tftypes.Map{ElementType: tftypes.String}, nil),
 				"working_dir": tftypes.NewValue(tftypes.String, nil),
 			},
-			expectedPlanResp: tfprotov5.PlanActionResponse{
+			expectedValidateResp: tfprotov5.ValidateActionConfigResponse{
+				// Provider-defined validation error
 				Diagnostics: []*tfprotov5.Diagnostic{
 					{
 						Severity:  tfprotov5.DiagnosticSeverityError,
-						Summary:   "External Program Missing",
-						Detail:    "The action was configured without a program to execute. Verify the configuration contains at least one non-empty value.",
+						Summary:   "Invalid Attribute Value",
+						Detail:    "Attribute program list must contain at least 1 elements, got: 0",
 						Attribute: tftypes.NewAttributePath().WithAttributeName("program"),
 					},
 				},
@@ -190,6 +220,23 @@ func TestAction_basic(t *testing.T) {
 			testProgramConfig, err := tfprotov5.NewDynamicValue(actionConfigType, tftypes.NewValue(actionConfigType, tc.config))
 			if err != nil {
 				t.Fatal(err)
+			}
+
+			validateResp, err := externalProvider.ValidateActionConfig(ctx, &tfprotov5.ValidateActionConfigRequest{
+				ActionType: actionTypeName,
+				Config:     &testProgramConfig,
+			})
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			if diff := cmp.Diff(*validateResp, tc.expectedValidateResp); diff != "" {
+				t.Errorf("unexpected difference: %s", diff)
+			}
+
+			// Don't plan/invoke if we had diagnostics during validate
+			if len(validateResp.Diagnostics) > 0 {
+				return
 			}
 
 			planResp, err := externalProvider.PlanAction(ctx, &tfprotov5.PlanActionRequest{

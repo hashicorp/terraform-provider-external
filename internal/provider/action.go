@@ -13,16 +13,17 @@ import (
 	"runtime"
 	"strings"
 
+	"github.com/hashicorp/terraform-plugin-framework-validators/listvalidator"
 	"github.com/hashicorp/terraform-plugin-framework/action"
 	"github.com/hashicorp/terraform-plugin-framework/action/schema"
 	"github.com/hashicorp/terraform-plugin-framework/path"
+	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/hashicorp/terraform-plugin-log/tflog"
 )
 
 var (
-	_ action.Action               = (*externalAction)(nil)
-	_ action.ActionWithModifyPlan = (*externalAction)(nil)
+	_ action.Action = (*externalAction)(nil)
 )
 
 func NewExternalAction() action.Action {
@@ -46,6 +47,9 @@ func (a *externalAction) Schema(ctx context.Context, req action.SchemaRequest, r
 					"metacharacters nor add quotes around arguments containing spaces.",
 				ElementType: types.StringType,
 				Required:    true,
+				Validators: []validator.List{
+					listvalidator.SizeAtLeast(1),
+				},
 			},
 
 			"working_dir": schema.StringAttribute{
@@ -61,36 +65,6 @@ func (a *externalAction) Schema(ctx context.Context, req action.SchemaRequest, r
 				Optional:    true,
 			},
 		},
-	}
-}
-
-// In the data source, this validation was static in the schema and also in the "Read" method. Since there is no static validation
-// we need to validate that during plan.
-func (a *externalAction) ModifyPlan(ctx context.Context, req action.ModifyPlanRequest, resp *action.ModifyPlanResponse) {
-	var program []types.String
-	resp.Diagnostics.Append(req.Config.GetAttribute(ctx, path.Root("program"), &program)...)
-	if resp.Diagnostics.HasError() {
-		return
-	}
-
-	filteredProgram := make([]string, 0, len(program))
-
-	for _, programArgRaw := range program {
-		// Null and unknown will have empty string as the value
-		if programArgRaw.ValueString() == "" {
-			continue
-		}
-
-		filteredProgram = append(filteredProgram, programArgRaw.ValueString())
-	}
-
-	if len(filteredProgram) == 0 {
-		resp.Diagnostics.AddAttributeError(
-			path.Root("program"),
-			"External Program Missing",
-			"The action was configured without a program to execute. Verify the configuration contains at least one non-empty value.",
-		)
-		return
 	}
 }
 
