@@ -5,6 +5,7 @@ package provider
 
 import (
 	"context"
+	"fmt"
 	"slices"
 	"testing"
 
@@ -13,6 +14,11 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/providerserver"
 	"github.com/hashicorp/terraform-plugin-go/tfprotov5"
 	"github.com/hashicorp/terraform-plugin-go/tftypes"
+	"github.com/hashicorp/terraform-plugin-testing/helper/resource"
+	"github.com/hashicorp/terraform-plugin-testing/knownvalue"
+	"github.com/hashicorp/terraform-plugin-testing/plancheck"
+	"github.com/hashicorp/terraform-plugin-testing/statecheck"
+	"github.com/hashicorp/terraform-plugin-testing/tfjsonpath"
 )
 
 // NOTE: These tests have a lot of hardcoded expectations for my specific machine, see TODO:Works_On_My_Machine comments.
@@ -271,6 +277,50 @@ func TestAction_raw(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestAction_real(t *testing.T) {
+	programPath, err := buildDataSourceTestProgram()
+	if err != nil {
+		t.Fatal(err)
+		return
+	}
+
+	resource.UnitTest(t, resource.TestCase{
+		ProtoV5ProviderFactories: protoV5ProviderFactories(),
+		Steps: []resource.TestStep{
+			{
+				Config: fmt.Sprintf(`
+resource "terraform_data" "fake_resource" {
+  input = "fake-string"
+
+  lifecycle {
+    action_trigger {
+      events  = [before_create]
+      actions = [action.external.test_pizza]
+    }
+  }
+}
+
+action "external" "test_pizza" {
+  config {
+    program = ["%s", "cheese"]
+    query = {
+      value = "pizza"
+    }
+  }
+}`, programPath),
+				ConfigPlanChecks: resource.ConfigPlanChecks{
+					PreApply: []plancheck.PlanCheck{
+						plancheck.ExpectResourceAction("terraform_data.fake_resource", plancheck.ResourceActionCreate),
+					},
+				},
+				ConfigStateChecks: []statecheck.StateCheck{
+					statecheck.ExpectKnownValue("terraform_data.fake_resource", tfjsonpath.New("output"), knownvalue.StringExact("fake-string")),
+				},
+			},
+		},
+	})
 }
 
 func GetExternalProvider(t *testing.T) tfprotov5.ProviderServerWithActions {
