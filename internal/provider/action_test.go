@@ -15,8 +15,8 @@ import (
 	"github.com/hashicorp/terraform-plugin-go/tftypes"
 )
 
-// NOTE: This test has a lot of hardcoded expectations for my specific machine, see TODO:Works_On_My_Machine comments.
-func TestAction_basic(t *testing.T) {
+// NOTE: These tests have a lot of hardcoded expectations for my specific machine, see TODO:Works_On_My_Machine comments.
+func TestAction_raw(t *testing.T) {
 	ctx := context.Background()
 
 	programPath, err := buildDataSourceTestProgram()
@@ -39,7 +39,7 @@ func TestAction_basic(t *testing.T) {
 			// terraform-plugin-go equivalent of:
 			//
 			// action "external" "test" {
-			//   config = {}
+			//   config {}
 			// }
 			//
 			config: map[string]tftypes.Value{
@@ -67,7 +67,7 @@ func TestAction_basic(t *testing.T) {
 			// terraform-plugin-go equivalent of:
 			//
 			// action "external" "test" {
-			//   config = {
+			//   config {
 			//     program = []
 			//   }
 			// }
@@ -96,7 +96,7 @@ func TestAction_basic(t *testing.T) {
 			// terraform-plugin-go equivalent of:
 			//
 			// action "external" "test" {
-			//   config = {
+			//   config {
 			//     program = ["<programPath>", "cheese"]
 			//
 			//     query = {
@@ -142,7 +142,7 @@ func TestAction_basic(t *testing.T) {
 			// terraform-plugin-go equivalent of:
 			//
 			// action "external" "test" {
-			//   config = {
+			//   config {
 			//     program = ["curl", "https://checkpoint-api.hashicorp.com/v1/check/terraform"]
 			//   }
 			// }
@@ -179,7 +179,7 @@ func TestAction_basic(t *testing.T) {
 			// terraform-plugin-go equivalent of:
 			//
 			// action "external" "test" {
-			//   config = {
+			//   config {
 			//     program = ["docker", "-v"]
 			//   }
 			// }
