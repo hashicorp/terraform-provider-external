@@ -7,11 +7,12 @@ import (
 	"context"
 
 	"github.com/hashicorp/terraform-plugin-framework/datasource"
+	"github.com/hashicorp/terraform-plugin-framework/ephemeral"
 	"github.com/hashicorp/terraform-plugin-framework/provider"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 )
 
-var _ provider.Provider = (*externalProvider)(nil)
+var _ provider.ProviderWithEphemeralResources = (*externalProvider)(nil)
 
 func New() provider.Provider {
 	return &externalProvider{}
@@ -35,6 +36,12 @@ func (p *externalProvider) DataSources(ctx context.Context) []func() datasource.
 
 func (p *externalProvider) Resources(ctx context.Context) []func() resource.Resource {
 	return nil
+}
+
+func (p *externalProvider) EphemeralResources(ctx context.Context) []func() ephemeral.EphemeralResource {
+	return []func() ephemeral.EphemeralResource{
+		NewExternalEphemeralResource,
+	}
 }
 
 func (p *externalProvider) Schema(context.Context, provider.SchemaRequest, *provider.SchemaResponse) {
