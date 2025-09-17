@@ -37,7 +37,7 @@ func (a *externalAction) Metadata(ctx context.Context, req action.MetadataReques
 }
 
 func (a *externalAction) Schema(ctx context.Context, req action.SchemaRequest, resp *action.SchemaResponse) {
-	resp.Schema = schema.UnlinkedSchema{
+	resp.Schema = schema.Schema{
 		Description: "",
 		Attributes: map[string]schema.Attribute{
 			"program": schema.ListAttribute{
