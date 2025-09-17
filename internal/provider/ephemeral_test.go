@@ -4,17 +4,17 @@
 package provider
 
 import (
-	"encoding/json"
 	"fmt"
-	"os"
-	"os/exec"
-	"path"
-	"path/filepath"
 	"regexp"
 	"testing"
 
+	"github.com/hashicorp/terraform-plugin-go/tfprotov6"
+	"github.com/hashicorp/terraform-plugin-testing/echoprovider"
 	"github.com/hashicorp/terraform-plugin-testing/helper/resource"
-	"github.com/hashicorp/terraform-plugin-testing/terraform"
+	"github.com/hashicorp/terraform-plugin-testing/knownvalue"
+	"github.com/hashicorp/terraform-plugin-testing/statecheck"
+	"github.com/hashicorp/terraform-plugin-testing/tfjsonpath"
+	"github.com/hashicorp/terraform-plugin-testing/tfversion"
 )
 
 const testEphemeralExternalConfig_basic = `
@@ -23,34 +23,55 @@ ephemeral "external" "test" {
 
   query = {
     value = "pizza"
-    output_file = "%s"
   }
 }
+
+provider "echo" {
+  data = ephemeral.external.test.result
+}
+
+resource "echo" "test" {}
 `
 
 func TestEphemeralExternal_basic(t *testing.T) {
-	programPath, err := buildEphemeralTestProgram()
+	programPath, err := buildDataSourceTestProgram()
 	if err != nil {
 		t.Fatal(err)
 		return
 	}
 
-	tempDir := t.TempDir()
-	outputFile := filepath.Join(tempDir, "result.json")
-
 	resource.UnitTest(t, resource.TestCase{
+		TerraformVersionChecks: []tfversion.TerraformVersionCheck{
+			tfversion.SkipBelow(tfversion.Version1_10_0),
+		},
+		ProtoV6ProviderFactories: map[string]func() (tfprotov6.ProviderServer, error){
+			"echo": echoprovider.NewProviderServer(),
+		},
 		ProtoV5ProviderFactories: protoV5ProviderFactories(),
 		Steps: []resource.TestStep{
 			{
-				Config: fmt.Sprintf(testEphemeralExternalConfig_basic, programPath, outputFile),
-				Check: func(_ *terraform.State) error {
-					return validateEphemeralOutput(outputFile, map[string]string{
-						"result":      "yes",
-						"query_value": "pizza",
-						"argument":    "cheese",
-						"value":       "pizza",
-						"output_file": outputFile,
-					})
+				Config: fmt.Sprintf(testEphemeralExternalConfig_basic, programPath),
+				ConfigStateChecks: []statecheck.StateCheck{
+					statecheck.ExpectKnownValue(
+						"echo.test",
+						tfjsonpath.New("data").AtMapKey("result"),
+						knownvalue.StringExact("yes"),
+					),
+					statecheck.ExpectKnownValue(
+						"echo.test",
+						tfjsonpath.New("data").AtMapKey("query_value"),
+						knownvalue.StringExact("pizza"),
+					),
+					statecheck.ExpectKnownValue(
+						"echo.test",
+						tfjsonpath.New("data").AtMapKey("argument"),
+						knownvalue.StringExact("cheese"),
+					),
+					statecheck.ExpectKnownValue(
+						"echo.test",
+						tfjsonpath.New("data").AtMapKey("value"),
+						knownvalue.StringExact("pizza"),
+					),
 				},
 			},
 		},
@@ -68,13 +89,16 @@ ephemeral "external" "test" {
 `
 
 func TestEphemeralExternal_error(t *testing.T) {
-	programPath, err := buildEphemeralTestProgram()
+	programPath, err := buildDataSourceTestProgram()
 	if err != nil {
 		t.Fatal(err)
 		return
 	}
 
 	resource.UnitTest(t, resource.TestCase{
+		TerraformVersionChecks: []tfversion.TerraformVersionCheck{
+			tfversion.SkipBelow(tfversion.Version1_10_0),
+		},
 		ProtoV5ProviderFactories: protoV5ProviderFactories(),
 		Steps: []resource.TestStep{
 			{
@@ -91,29 +115,48 @@ ephemeral "external" "test" {
   working_dir = "%s"
 
   query = {
-    working_dir_file = "%s"
+    value = "test"
   }
 }
+
+provider "echo" {
+  data = ephemeral.external.test.result
+}
+
+resource "echo" "test" {}
 `
 
 func TestEphemeralExternal_workingDirectory(t *testing.T) {
-	programPath, err := buildEphemeralTestProgram()
+	programPath, err := buildDataSourceTestProgram()
 	if err != nil {
 		t.Fatal(err)
 		return
 	}
 
-	tempDir := t.TempDir()
-	workingDirFile := filepath.Join(tempDir, "working_dir.txt")
 	workingDir := "/tmp"
 
 	resource.UnitTest(t, resource.TestCase{
+		TerraformVersionChecks: []tfversion.TerraformVersionCheck{
+			tfversion.SkipBelow(tfversion.Version1_10_0),
+		},
+		ProtoV6ProviderFactories: map[string]func() (tfprotov6.ProviderServer, error){
+			"echo": echoprovider.NewProviderServer(),
+		},
 		ProtoV5ProviderFactories: protoV5ProviderFactories(),
 		Steps: []resource.TestStep{
 			{
-				Config: fmt.Sprintf(testEphemeralExternalConfig_workingDir, programPath, workingDir, workingDirFile),
-				Check: func(_ *terraform.State) error {
-					return validateWorkingDirectory(workingDirFile, workingDir)
+				Config: fmt.Sprintf(testEphemeralExternalConfig_workingDir, programPath, workingDir),
+				ConfigStateChecks: []statecheck.StateCheck{
+					statecheck.ExpectKnownValue(
+						"echo.test",
+						tfjsonpath.New("data").AtMapKey("working_dir"),
+						knownvalue.StringExact(workingDir),
+					),
+					statecheck.ExpectKnownValue(
+						"echo.test",
+						tfjsonpath.New("data").AtMapKey("result"),
+						knownvalue.StringExact("yes"),
+					),
 				},
 			},
 		},
@@ -124,32 +167,40 @@ const testEphemeralExternalConfig_emptyQuery = `
 ephemeral "external" "test" {
   program = ["%s"]
 
-  query = {
-    output_file = "%s"
-  }
+  query = {}
 }
+
+provider "echo" {
+  data = ephemeral.external.test.result
+}
+
+resource "echo" "test" {}
 `
 
 func TestEphemeralExternal_emptyQuery(t *testing.T) {
-	programPath, err := buildEphemeralTestProgram()
+	programPath, err := buildDataSourceTestProgram()
 	if err != nil {
 		t.Fatal(err)
 		return
 	}
 
-	tempDir := t.TempDir()
-	outputFile := filepath.Join(tempDir, "result.json")
-
 	resource.UnitTest(t, resource.TestCase{
+		TerraformVersionChecks: []tfversion.TerraformVersionCheck{
+			tfversion.SkipBelow(tfversion.Version1_10_0),
+		},
+		ProtoV6ProviderFactories: map[string]func() (tfprotov6.ProviderServer, error){
+			"echo": echoprovider.NewProviderServer(),
+		},
 		ProtoV5ProviderFactories: protoV5ProviderFactories(),
 		Steps: []resource.TestStep{
 			{
-				Config: fmt.Sprintf(testEphemeralExternalConfig_emptyQuery, programPath, outputFile),
-				Check: func(_ *terraform.State) error {
-					return validateEphemeralOutput(outputFile, map[string]string{
-						"result":      "yes",
-						"output_file": outputFile,
-					})
+				Config: fmt.Sprintf(testEphemeralExternalConfig_emptyQuery, programPath),
+				ConfigStateChecks: []statecheck.StateCheck{
+					statecheck.ExpectKnownValue(
+						"echo.test",
+						tfjsonpath.New("data").AtMapKey("result"),
+						knownvalue.StringExact("yes"),
+					),
 				},
 			},
 		},
@@ -164,6 +215,9 @@ ephemeral "external" "test" {
 
 func TestEphemeralExternal_missingProgram(t *testing.T) {
 	resource.UnitTest(t, resource.TestCase{
+		TerraformVersionChecks: []tfversion.TerraformVersionCheck{
+			tfversion.SkipBelow(tfversion.Version1_10_0),
+		},
 		ProtoV5ProviderFactories: protoV5ProviderFactories(),
 		Steps: []resource.TestStep{
 			{
@@ -176,6 +230,9 @@ func TestEphemeralExternal_missingProgram(t *testing.T) {
 
 func TestEphemeralExternal_Program_OnlyEmptyString(t *testing.T) {
 	resource.UnitTest(t, resource.TestCase{
+		TerraformVersionChecks: []tfversion.TerraformVersionCheck{
+			tfversion.SkipBelow(tfversion.Version1_10_0),
+		},
 		ProtoV5ProviderFactories: protoV5ProviderFactories(),
 		Steps: []resource.TestStep{
 			{
@@ -184,7 +241,7 @@ func TestEphemeralExternal_Program_OnlyEmptyString(t *testing.T) {
 						program = [
 							"", # e.g. a variable that became empty
 						]
-				
+
 						query = {
 							value = "valuetest"
 						}
@@ -197,16 +254,19 @@ func TestEphemeralExternal_Program_OnlyEmptyString(t *testing.T) {
 }
 
 func TestEphemeralExternal_Program_PathAndEmptyString(t *testing.T) {
-	programPath, err := buildEphemeralTestProgram()
+	programPath, err := buildDataSourceTestProgram()
 	if err != nil {
 		t.Fatal(err)
 		return
 	}
 
-	tempDir := t.TempDir()
-	outputFile := filepath.Join(tempDir, "result.json")
-
 	resource.UnitTest(t, resource.TestCase{
+		TerraformVersionChecks: []tfversion.TerraformVersionCheck{
+			tfversion.SkipBelow(tfversion.Version1_10_0),
+		},
+		ProtoV6ProviderFactories: map[string]func() (tfprotov6.ProviderServer, error){
+			"echo": echoprovider.NewProviderServer(),
+		},
 		ProtoV5ProviderFactories: protoV5ProviderFactories(),
 		Steps: []resource.TestStep{
 			{
@@ -216,20 +276,34 @@ func TestEphemeralExternal_Program_PathAndEmptyString(t *testing.T) {
 							%[1]q,
 							"", # e.g. a variable that became empty
 						]
-				
+
 						query = {
 							value = "valuetest"
-							output_file = %[2]q
 						}
 					}
-				`, programPath, outputFile),
-				Check: func(_ *terraform.State) error {
-					return validateEphemeralOutput(outputFile, map[string]string{
-						"result":      "yes",
-						"query_value": "valuetest",
-						"value":       "valuetest",
-						"output_file": outputFile,
-					})
+
+					provider "echo" {
+					  data = ephemeral.external.test.result
+					}
+
+					resource "echo" "test" {}
+				`, programPath),
+				ConfigStateChecks: []statecheck.StateCheck{
+					statecheck.ExpectKnownValue(
+						"echo.test",
+						tfjsonpath.New("data").AtMapKey("result"),
+						knownvalue.StringExact("yes"),
+					),
+					statecheck.ExpectKnownValue(
+						"echo.test",
+						tfjsonpath.New("data").AtMapKey("query_value"),
+						knownvalue.StringExact("valuetest"),
+					),
+					statecheck.ExpectKnownValue(
+						"echo.test",
+						tfjsonpath.New("data").AtMapKey("value"),
+						knownvalue.StringExact("valuetest"),
+					),
 				},
 			},
 		},
@@ -238,6 +312,9 @@ func TestEphemeralExternal_Program_PathAndEmptyString(t *testing.T) {
 
 func TestEphemeralExternal_Program_EmptyStringAndNullValues(t *testing.T) {
 	resource.UnitTest(t, resource.TestCase{
+		TerraformVersionChecks: []tfversion.TerraformVersionCheck{
+			tfversion.SkipBelow(tfversion.Version1_10_0),
+		},
 		ProtoV5ProviderFactories: protoV5ProviderFactories(),
 		Steps: []resource.TestStep{
 			{
@@ -246,7 +323,7 @@ func TestEphemeralExternal_Program_EmptyStringAndNullValues(t *testing.T) {
 						program = [
 							null, "", # e.g. a variable that became empty
 						]
-				
+
 						query = {
 							value = "valuetest"
 						}
@@ -259,36 +336,53 @@ func TestEphemeralExternal_Program_EmptyStringAndNullValues(t *testing.T) {
 }
 
 func TestEphemeralExternal_Query_EmptyElementValue(t *testing.T) {
-	programPath, err := buildEphemeralTestProgram()
+	programPath, err := buildDataSourceTestProgram()
 	if err != nil {
 		t.Fatal(err)
 		return
 	}
 
-	tempDir := t.TempDir()
-	outputFile := filepath.Join(tempDir, "result.json")
-
 	resource.UnitTest(t, resource.TestCase{
+		TerraformVersionChecks: []tfversion.TerraformVersionCheck{
+			tfversion.SkipBelow(tfversion.Version1_10_0),
+		},
+		ProtoV6ProviderFactories: map[string]func() (tfprotov6.ProviderServer, error){
+			"echo": echoprovider.NewProviderServer(),
+		},
 		ProtoV5ProviderFactories: protoV5ProviderFactories(),
 		Steps: []resource.TestStep{
 			{
 				Config: fmt.Sprintf(`
 					ephemeral "external" "test" {
 						program = [%[1]q]
-				
+
 						query = {
 							value = ""
-							output_file = %[2]q
 						}
 					}
-				`, programPath, outputFile),
-				Check: func(_ *terraform.State) error {
-					return validateEphemeralOutput(outputFile, map[string]string{
-						"result":      "yes",
-						"query_value": "",
-						"value":       "",
-						"output_file": outputFile,
-					})
+
+					provider "echo" {
+					  data = ephemeral.external.test.result
+					}
+
+					resource "echo" "test" {}
+				`, programPath),
+				ConfigStateChecks: []statecheck.StateCheck{
+					statecheck.ExpectKnownValue(
+						"echo.test",
+						tfjsonpath.New("data").AtMapKey("result"),
+						knownvalue.StringExact("yes"),
+					),
+					statecheck.ExpectKnownValue(
+						"echo.test",
+						tfjsonpath.New("data").AtMapKey("query_value"),
+						knownvalue.StringExact(""),
+					),
+					statecheck.ExpectKnownValue(
+						"echo.test",
+						tfjsonpath.New("data").AtMapKey("value"),
+						knownvalue.StringExact(""),
+					),
 				},
 			},
 		},
@@ -296,111 +390,48 @@ func TestEphemeralExternal_Query_EmptyElementValue(t *testing.T) {
 }
 
 func TestEphemeralExternal_Query_NullElementValue(t *testing.T) {
-	programPath, err := buildEphemeralTestProgram()
+	programPath, err := buildDataSourceTestProgram()
 	if err != nil {
 		t.Fatal(err)
 		return
 	}
 
-	tempDir := t.TempDir()
-	outputFile := filepath.Join(tempDir, "result.json")
-
 	resource.UnitTest(t, resource.TestCase{
+		TerraformVersionChecks: []tfversion.TerraformVersionCheck{
+			tfversion.SkipBelow(tfversion.Version1_10_0),
+		},
+		ProtoV6ProviderFactories: map[string]func() (tfprotov6.ProviderServer, error){
+			"echo": echoprovider.NewProviderServer(),
+		},
 		ProtoV5ProviderFactories: protoV5ProviderFactories(),
 		Steps: []resource.TestStep{
 			{
 				Config: fmt.Sprintf(`
 				ephemeral "external" "test" {
 				  program = [%[1]q]
-				
+
 				  query = {
 					# Program will return exit status 1 if the "fail" key is present.
 					fail = null
-					output_file = %[2]q
 				  }
 				}
-				`, programPath, outputFile),
-				Check: func(_ *terraform.State) error {
-					// Validate that the program ran successfully and null values were filtered
-					data, err := os.ReadFile(outputFile)
-					if err != nil {
-						return fmt.Errorf("failed to read output file: %v", err)
-					}
 
-					var result map[string]string
-					if err := json.Unmarshal(data, &result); err != nil {
-						return fmt.Errorf("failed to parse JSON: %v", err)
-					}
+				provider "echo" {
+				  data = ephemeral.external.test.result
+				}
 
-					// The "fail" key should not be present due to null filtering
-					if _, exists := result["fail"]; exists {
-						return fmt.Errorf("unexpected 'fail' key in result, null values should be filtered")
-					}
-
-					return nil
+				resource "echo" "test" {}
+				`, programPath),
+				ConfigStateChecks: []statecheck.StateCheck{
+					statecheck.ExpectKnownValue(
+						"echo.test",
+						tfjsonpath.New("data").AtMapKey("result"),
+						knownvalue.StringExact("yes"),
+					),
+					// The test passes by successfully running without the "fail" key
+					// causing the external program to exit with status 1
 				},
 			},
 		},
 	})
-}
-
-func buildEphemeralTestProgram() (string, error) {
-	// We have a simple Go program that we use as a stub for testing.
-	cmd := exec.Command(
-		"go", "install",
-		"github.com/terraform-providers/terraform-provider-external/internal/provider/test-programs/tf-acc-external-ephemeral",
-	)
-	err := cmd.Run()
-
-	if err != nil {
-		return "", fmt.Errorf("failed to build test stub program: %s", err)
-	}
-
-	gopath := os.Getenv("GOPATH")
-	if gopath == "" {
-		gopath = filepath.Join(os.Getenv("HOME") + "/go")
-	}
-
-	programPath := path.Join(
-		filepath.SplitList(gopath)[0], "bin", "tf-acc-external-ephemeral",
-	)
-	return programPath, nil
-}
-
-func validateEphemeralOutput(outputFile string, expectedResults map[string]string) error {
-	data, err := os.ReadFile(outputFile)
-	if err != nil {
-		return fmt.Errorf("failed to read output file: %v", err)
-	}
-
-	var result map[string]string
-	if err := json.Unmarshal(data, &result); err != nil {
-		return fmt.Errorf("failed to parse JSON: %v", err)
-	}
-
-	for key, expectedValue := range expectedResults {
-		actualValue, exists := result[key]
-		if !exists {
-			return fmt.Errorf("missing key '%s' in result", key)
-		}
-		if actualValue != expectedValue {
-			return fmt.Errorf("key '%s': expected '%s', got '%s'", key, expectedValue, actualValue)
-		}
-	}
-
-	return nil
-}
-
-func validateWorkingDirectory(workingDirFile, expectedWorkingDir string) error {
-	data, err := os.ReadFile(workingDirFile)
-	if err != nil {
-		return fmt.Errorf("failed to read working directory file: %v", err)
-	}
-
-	actualWorkingDir := string(data)
-	if actualWorkingDir != expectedWorkingDir {
-		return fmt.Errorf("working directory: expected '%s', got '%s'", expectedWorkingDir, actualWorkingDir)
-	}
-
-	return nil
 }

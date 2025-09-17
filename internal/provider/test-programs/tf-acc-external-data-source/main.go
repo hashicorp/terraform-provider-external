@@ -46,6 +46,11 @@ func main() {
 		result["argument"] = os.Args[1]
 	}
 
+	// Add working directory to result
+	if wd, err := os.Getwd(); err == nil {
+		result["working_dir"] = wd
+	}
+
 	for queryKey, queryValue := range query {
 		if queryValue != nil {
 			result[queryKey] = *queryValue

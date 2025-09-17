@@ -116,6 +116,75 @@ func TestDataSource_error(t *testing.T) {
 	})
 }
 
+const testDataSourceConfig_workingDir = `
+data "external" "test" {
+  program = ["%s"]
+  working_dir = "%s"
+
+  query = {
+    value = "test"
+  }
+}
+
+output "working_dir" {
+  value = "${data.external.test.result["working_dir"]}"
+}
+
+output "result" {
+  value = "${data.external.test.result["result"]}"
+}
+`
+
+func TestDataSource_workingDirectory(t *testing.T) {
+	programPath, err := buildDataSourceTestProgram()
+	if err != nil {
+		t.Fatal(err)
+		return
+	}
+
+	workingDir := "/tmp"
+
+	resource.UnitTest(t, resource.TestCase{
+		ProtoV5ProviderFactories: protoV5ProviderFactories(),
+		Steps: []resource.TestStep{
+			{
+				Config: fmt.Sprintf(testDataSourceConfig_workingDir, programPath, workingDir),
+				Check: func(s *terraform.State) error {
+					_, ok := s.RootModule().Resources["data.external.test"]
+					if !ok {
+						return fmt.Errorf("missing data resource")
+					}
+
+					outputs := s.RootModule().Outputs
+
+					if outputs["working_dir"] == nil {
+						return fmt.Errorf("missing 'working_dir' output")
+					}
+					if outputs["result"] == nil {
+						return fmt.Errorf("missing 'result' output")
+					}
+
+					if outputs["working_dir"].Value != workingDir {
+						return fmt.Errorf(
+							"'working_dir' output is %q; want %q",
+							outputs["working_dir"].Value,
+							workingDir,
+						)
+					}
+					if outputs["result"].Value != "yes" {
+						return fmt.Errorf(
+							"'result' output is %q; want 'yes'",
+							outputs["result"].Value,
+						)
+					}
+
+					return nil
+				},
+			},
+		},
+	})
+}
+
 // Reference: https://github.com/hashicorp/terraform-provider-external/issues/110
 func TestDataSource_Program_OnlyEmptyString(t *testing.T) {
 	resource.UnitTest(t, resource.TestCase{
