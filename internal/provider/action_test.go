@@ -173,7 +173,7 @@ func TestAction_raw(t *testing.T) {
 				},
 				{
 					Type: tfprotov5.ProgressInvokeActionEventType{
-						Message: `Output: {"product":"terraform","current_version":"1.12.2","current_release":1749639824,"current_download_url":"https://releases.hashicorp.com/terraform/1.12.2","current_changelog_url":"https://github.com/hashicorp/terraform/blob/v1.12/CHANGELOG.md","project_website":"https://www.terraform.io","alerts":[]}`,
+						Message: `Output: {"product":"terraform","current_version":"1.13.3","current_release":1758116478,"current_download_url":"https://releases.hashicorp.com/terraform/1.13.3","current_changelog_url":"https://github.com/hashicorp/terraform/blob/v1.13/CHANGELOG.md","project_website":"https://www.terraform.io","alerts":[]}`,
 					},
 				},
 				{
@@ -210,7 +210,7 @@ func TestAction_raw(t *testing.T) {
 				},
 				{
 					Type: tfprotov5.ProgressInvokeActionEventType{
-						Message: "Output: Docker version 27.4.0, build bde2b89\n", // TODO:Works_On_My_Machine
+						Message: "Output: Docker version 28.3.2, build 578ccf6\n", // TODO:Works_On_My_Machine
 					},
 				},
 				{
