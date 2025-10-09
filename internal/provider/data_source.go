@@ -9,6 +9,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"os"
 	"os/exec"
 	"runtime"
 	"strings"
@@ -178,6 +179,25 @@ func (n *externalDataSource) Read(ctx context.Context, req datasource.ReadReques
 		err = nil
 	}
 
+	executableString := filteredProgram
+
+	if runtime.GOOS != "windows" && errors.Is(err, exec.ErrNotFound) {
+		// Add other shells here as need arises, the only requirement being it must provide "standard"
+		// behavior for the -i and -c options
+		shells := []string{"bash", "fish", "zsh", "ksh", "ash", "sh", "dash"}
+
+		sh := os.Getenv("SHELL")
+		for _, s := range shells {
+			if strings.HasSuffix(sh, "/"+s) {
+				executableString = []string{sh, "-i", "-c", "--"}
+				args := strings.Join(filteredProgram, " ")
+				executableString = append(executableString, args)
+				err = nil
+				break
+			}
+		}
+	}
+
 	if err != nil {
 		resp.Diagnostics.AddAttributeError(
 			path.Root("program"),
@@ -202,7 +222,7 @@ The program must also be executable according to the platform where Terraform is
 
 	workingDir := config.WorkingDir.ValueString()
 
-	cmd := exec.CommandContext(ctx, filteredProgram[0], filteredProgram[1:]...)
+	cmd := exec.CommandContext(ctx, executableString[0], executableString[1:]...)
 
 	// This is a workaround to preserve pre-existing behaviour prior to the upgrade to Go 1.19.
 	// Reference: https://github.com/hashicorp/terraform-provider-external/pull/192
