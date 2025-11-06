@@ -9,13 +9,16 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"math/big"
 	"os/exec"
 	"runtime"
 	"strings"
 
 	"github.com/hashicorp/terraform-plugin-framework-validators/listvalidator"
+	"github.com/hashicorp/terraform-plugin-framework/attr"
 	"github.com/hashicorp/terraform-plugin-framework/datasource"
 	"github.com/hashicorp/terraform-plugin-framework/datasource/schema"
+	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
 	"github.com/hashicorp/terraform-plugin-framework/types"
@@ -79,10 +82,10 @@ func (n *externalDataSource) Schema(ctx context.Context, req datasource.SchemaRe
 				Optional:    true,
 			},
 
-			"result": schema.MapAttribute{
-				Description: "A map of string values returned from the external program.",
-				ElementType: types.StringType,
-				Computed:    true,
+			"result": schema.DynamicAttribute{
+				Description: "A dynamic value returned from the external program. This can be any JSON value " +
+					"including strings, numbers, booleans, lists, maps, and objects.",
+				Computed: true,
 			},
 
 			"id": schema.StringAttribute{
@@ -252,7 +255,7 @@ The program must also be executable according to the platform where Terraform is
 		return
 	}
 
-	result := map[string]string{}
+	var result interface{}
 	err = json.Unmarshal(resultJson, &result)
 	if err != nil {
 		resp.Diagnostics.AddAttributeError(
@@ -260,7 +263,7 @@ The program must also be executable according to the platform where Terraform is
 			"Unexpected External Program Results",
 			`The data source received unexpected results after executing the program.
 
-Program output must be a JSON encoded map of string keys and string values.
+Program output must be valid JSON.
 
 If the error is unclear, the output can be viewed by enabling Terraform's logging at TRACE level. Terraform documentation on logging: https://www.terraform.io/internals/debugging
 `+
@@ -270,7 +273,7 @@ If the error is unclear, the output can be viewed by enabling Terraform's loggin
 		return
 	}
 
-	config.Result, diags = types.MapValueFrom(ctx, types.StringType, result)
+	config.Result, diags = convertJSONToDynamic(ctx, result)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
 		return
@@ -282,10 +285,74 @@ If the error is unclear, the output can be viewed by enabling Terraform's loggin
 	resp.Diagnostics.Append(diags...)
 }
 
+// convertJSONToDynamic converts a Go interface{} value (from json.Unmarshal) to a Terraform Dynamic value
+func convertJSONToDynamic(ctx context.Context, value interface{}) (types.Dynamic, diag.Diagnostics) {
+	var diags diag.Diagnostics
+
+	if value == nil {
+		return types.DynamicNull(), diags
+	}
+
+	switch v := value.(type) {
+	case bool:
+		return types.DynamicValue(types.BoolValue(v)), diags
+	case float64:
+		// Convert float64 to *big.Float for NumberValue
+		bf := big.NewFloat(v)
+		return types.DynamicValue(types.NumberValue(bf)), diags
+	case string:
+		return types.DynamicValue(types.StringValue(v)), diags
+	case []interface{}:
+		// Convert to tuple (heterogeneous list)
+		elements := make([]attr.Value, len(v))
+		elementTypes := make([]attr.Type, len(v))
+		for i, elem := range v {
+			dynElem, elemDiags := convertJSONToDynamic(ctx, elem)
+			diags.Append(elemDiags...)
+			if diags.HasError() {
+				return types.DynamicNull(), diags
+			}
+			elements[i] = dynElem
+			elementTypes[i] = types.DynamicType
+		}
+		tupleVal, tupleDiags := types.TupleValue(elementTypes, elements)
+		diags.Append(tupleDiags...)
+		if diags.HasError() {
+			return types.DynamicNull(), diags
+		}
+		return types.DynamicValue(tupleVal), diags
+	case map[string]interface{}:
+		// Convert to object
+		attrValues := make(map[string]attr.Value)
+		attrTypes := make(map[string]attr.Type)
+		for key, val := range v {
+			dynVal, valDiags := convertJSONToDynamic(ctx, val)
+			diags.Append(valDiags...)
+			if diags.HasError() {
+				return types.DynamicNull(), diags
+			}
+			attrValues[key] = dynVal
+			attrTypes[key] = types.DynamicType
+		}
+		objVal, objDiags := types.ObjectValue(attrTypes, attrValues)
+		diags.Append(objDiags...)
+		if diags.HasError() {
+			return types.DynamicNull(), diags
+		}
+		return types.DynamicValue(objVal), diags
+	default:
+		diags.AddError(
+			"Unsupported JSON Type",
+			fmt.Sprintf("The JSON value type %T is not supported for conversion to Terraform Dynamic type", v),
+		)
+		return types.DynamicNull(), diags
+	}
+}
+
 type externalDataSourceModelV0 struct {
-	Program    types.List   `tfsdk:"program"`
-	WorkingDir types.String `tfsdk:"working_dir"`
-	Query      types.Map    `tfsdk:"query"`
-	Result     types.Map    `tfsdk:"result"`
-	ID         types.String `tfsdk:"id"`
+	Program    types.List    `tfsdk:"program"`
+	WorkingDir types.String  `tfsdk:"working_dir"`
+	Query      types.Map     `tfsdk:"query"`
+	Result     types.Dynamic `tfsdk:"result"`
+	ID         types.String  `tfsdk:"id"`
 }
