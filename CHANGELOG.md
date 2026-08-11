@@ -1,3 +1,9 @@
+## 2.4.1 (August 11, 2026)
+
+NOTES:
+
+* Dependency updates ([#500](https://github.com/hashicorp/terraform-provider-external/issues/500))
+
 ## 2.4.0 (May 12, 2026)
 
 ENHANCEMENTS:
