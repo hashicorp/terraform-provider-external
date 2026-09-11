@@ -1,3 +1,10 @@
+## 2.4.2 (September 11, 2026)
+
+NOTES:
+
+* Upgrade the Go toolchain to 1.26.8. ([#512](https://github.com/hashicorp/terraform-provider-external/issues/512))
+* Update golang.org/x/crypto to v0.56.0, golang.org/x/mod to v0.40.0, and google.golang.org/protobuf to v1.36.12. ([#513](https://github.com/hashicorp/terraform-provider-external/issues/513))
+
 ## 2.4.1 (August 14, 2026)
 
 NOTES:
