@@ -1,0 +1,5 @@
+kind: BUG FIXES
+body: 'data-source/external: Fix test program path building and execution for acceptance tests on Windows'
+time: 2026-09-14T10:52:00.000000-04:00
+custom:
+    Issue: "186"
