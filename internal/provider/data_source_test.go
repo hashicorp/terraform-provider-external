@@ -4,14 +4,19 @@
 package provider
 
 import (
+	"context"
 	"fmt"
+	"go/build"
 	"os"
 	"os/exec"
-	"path"
 	"path/filepath"
 	"regexp"
+	"runtime"
 	"testing"
 
+	"github.com/hashicorp/terraform-plugin-framework/datasource"
+	"github.com/hashicorp/terraform-plugin-framework/tfsdk"
+	"github.com/hashicorp/terraform-plugin-go/tftypes"
 	"github.com/hashicorp/terraform-plugin-testing/helper/resource"
 	"github.com/hashicorp/terraform-plugin-testing/terraform"
 )
@@ -265,7 +270,12 @@ func TestDataSource_CurrentDir(t *testing.T) {
 
 	tempDir := t.TempDir()
 
-	err = os.Rename(programPath, filepath.Join(tempDir, "tf-acc-external-data-source"))
+	binaryName := "tf-acc-external-data-source"
+	if runtime.GOOS == "windows" {
+		binaryName += ".exe"
+	}
+
+	err = os.Rename(filepath.FromSlash(programPath), filepath.Join(tempDir, binaryName))
 	if err != nil {
 		t.Fatalf("cannot move tf-acc-external-data-source from go bin to temp dir: %s", err)
 	}
@@ -276,7 +286,7 @@ func TestDataSource_CurrentDir(t *testing.T) {
 	}
 
 	p := os.Getenv("PATH")
-	t.Setenv("PATH", fmt.Sprintf("%s:%s", p, tempDirRel))
+	t.Setenv("PATH", fmt.Sprintf("%s%c%s", p, os.PathListSeparator, tempDirRel))
 
 	resource.UnitTest(t, resource.TestCase{
 		ProtoV5ProviderFactories: protoV5ProviderFactories(),
@@ -290,13 +300,94 @@ func TestDataSource_CurrentDir(t *testing.T) {
 							value = "test",
 						}
 					}
-				`, "tf-acc-external-data-source"),
+				`, binaryName),
 				Check: resource.ComposeAggregateTestCheckFunc(
 					resource.TestCheckResourceAttr("data.external.test", "result.value", "test"),
 				),
 			},
 		},
 	})
+}
+
+// Reference: https://github.com/hashicorp/terraform-provider-external/issues/197
+func TestExternalDataSource_Read_currentDirWarning(t *testing.T) {
+	programPath, err := buildDataSourceTestProgram()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	wd, err := os.Getwd()
+	if err != nil {
+		t.Fatalf("cannot get current working dir: %s", err)
+	}
+
+	tempDir := t.TempDir()
+	binaryName := "tf-acc-external-data-source"
+	if runtime.GOOS == "windows" {
+		binaryName += ".exe"
+	}
+
+	err = os.Rename(filepath.FromSlash(programPath), filepath.Join(tempDir, binaryName))
+	if err != nil {
+		t.Fatalf("cannot move binary to temp dir: %s", err)
+	}
+
+	tempDirRel, err := filepath.Rel(wd, tempDir)
+	if err != nil {
+		t.Fatalf("could not obtain relative directory: %s", err)
+	}
+
+	p := os.Getenv("PATH")
+	t.Setenv("PATH", fmt.Sprintf("%s%c%s", p, os.PathListSeparator, tempDirRel))
+
+	ds := NewExternalDataSource()
+	var schemaResp datasource.SchemaResponse
+	ds.Schema(context.Background(), datasource.SchemaRequest{}, &schemaResp)
+
+	cfgVal := tftypes.NewValue(tftypes.Object{
+		AttributeTypes: map[string]tftypes.Type{
+			"program":     tftypes.List{ElementType: tftypes.String},
+			"working_dir": tftypes.String,
+			"query":       tftypes.Map{ElementType: tftypes.String},
+			"result":      tftypes.Map{ElementType: tftypes.String},
+			"id":          tftypes.String,
+		},
+	}, map[string]tftypes.Value{
+		"program": tftypes.NewValue(tftypes.List{ElementType: tftypes.String}, []tftypes.Value{
+			tftypes.NewValue(tftypes.String, binaryName),
+		}),
+		"working_dir": tftypes.NewValue(tftypes.String, nil),
+		"query":       tftypes.NewValue(tftypes.Map{ElementType: tftypes.String}, map[string]tftypes.Value{}),
+		"result":      tftypes.NewValue(tftypes.Map{ElementType: tftypes.String}, nil),
+		"id":          tftypes.NewValue(tftypes.String, nil),
+	})
+
+	req := datasource.ReadRequest{
+		Config: tfsdk.Config{
+			Raw:    cfgVal,
+			Schema: schemaResp.Schema,
+		},
+	}
+	resp := datasource.ReadResponse{
+		State: tfsdk.State{
+			Schema: schemaResp.Schema,
+		},
+	}
+
+	ds.Read(context.Background(), req, &resp)
+
+	if resp.Diagnostics.HasError() {
+		t.Fatalf("unexpected error: %s", resp.Diagnostics.Errors())
+	}
+
+	warnings := resp.Diagnostics.Warnings()
+	if len(warnings) != 1 {
+		t.Fatalf("expected 1 warning, got %d: %v", len(warnings), warnings)
+	}
+
+	if warnings[0].Summary() != "Executing Program in Current Directory Deprecated" {
+		t.Errorf("unexpected warning summary: %s", warnings[0].Summary())
+	}
 }
 
 func TestDataSource_upgrade(t *testing.T) {
@@ -386,6 +477,11 @@ func TestDataSource_upgrade(t *testing.T) {
 }
 
 func buildDataSourceTestProgram() (string, error) {
+	binaryName := "tf-acc-external-data-source"
+	if runtime.GOOS == "windows" {
+		binaryName += ".exe"
+	}
+
 	// We have a simple Go program that we use as a stub for testing.
 	cmd := exec.Command(
 		"go", "install",
@@ -399,13 +495,23 @@ func buildDataSourceTestProgram() (string, error) {
 
 	gopath := os.Getenv("GOPATH")
 	if gopath == "" {
-		gopath = filepath.Join(os.Getenv("HOME") + "/go")
+		gopath = build.Default.GOPATH
+	}
+	if gopath == "" {
+		home, err := os.UserHomeDir()
+		if err != nil {
+			return "", fmt.Errorf("failed to determine user home directory: %s", err)
+		}
+		gopath = filepath.Join(home, "go")
 	}
 
-	programPath := path.Join(
-		filepath.SplitList(gopath)[0], "bin", "tf-acc-external-data-source",
-	)
-	return programPath, nil
+	gobin := os.Getenv("GOBIN")
+	if gobin == "" {
+		gobin = filepath.Join(filepath.SplitList(gopath)[0], "bin")
+	}
+
+	programPath := filepath.Join(gobin, binaryName)
+	return filepath.ToSlash(programPath), nil
 }
 
 // Reference: https://github.com/hashicorp/terraform-provider-external/issues/145
