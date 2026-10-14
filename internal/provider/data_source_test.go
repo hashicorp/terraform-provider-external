@@ -5,11 +5,12 @@ package provider
 
 import (
 	"fmt"
+	"go/build"
 	"os"
 	"os/exec"
-	"path"
 	"path/filepath"
 	"regexp"
+	"runtime"
 	"testing"
 
 	"github.com/hashicorp/terraform-plugin-testing/helper/resource"
@@ -265,7 +266,12 @@ func TestDataSource_CurrentDir(t *testing.T) {
 
 	tempDir := t.TempDir()
 
-	err = os.Rename(programPath, filepath.Join(tempDir, "tf-acc-external-data-source"))
+	binaryName := "tf-acc-external-data-source"
+	if runtime.GOOS == "windows" {
+		binaryName += ".exe"
+	}
+
+	err = os.Rename(filepath.FromSlash(programPath), filepath.Join(tempDir, binaryName))
 	if err != nil {
 		t.Fatalf("cannot move tf-acc-external-data-source from go bin to temp dir: %s", err)
 	}
@@ -276,7 +282,7 @@ func TestDataSource_CurrentDir(t *testing.T) {
 	}
 
 	p := os.Getenv("PATH")
-	t.Setenv("PATH", fmt.Sprintf("%s:%s", p, tempDirRel))
+	t.Setenv("PATH", fmt.Sprintf("%s%c%s", p, os.PathListSeparator, tempDirRel))
 
 	resource.UnitTest(t, resource.TestCase{
 		ProtoV5ProviderFactories: protoV5ProviderFactories(),
@@ -290,7 +296,7 @@ func TestDataSource_CurrentDir(t *testing.T) {
 							value = "test",
 						}
 					}
-				`, "tf-acc-external-data-source"),
+				`, binaryName),
 				Check: resource.ComposeAggregateTestCheckFunc(
 					resource.TestCheckResourceAttr("data.external.test", "result.value", "test"),
 				),
@@ -386,6 +392,11 @@ func TestDataSource_upgrade(t *testing.T) {
 }
 
 func buildDataSourceTestProgram() (string, error) {
+	binaryName := "tf-acc-external-data-source"
+	if runtime.GOOS == "windows" {
+		binaryName += ".exe"
+	}
+
 	// We have a simple Go program that we use as a stub for testing.
 	cmd := exec.Command(
 		"go", "install",
@@ -399,13 +410,23 @@ func buildDataSourceTestProgram() (string, error) {
 
 	gopath := os.Getenv("GOPATH")
 	if gopath == "" {
-		gopath = filepath.Join(os.Getenv("HOME") + "/go")
+		gopath = build.Default.GOPATH
+	}
+	if gopath == "" {
+		home, err := os.UserHomeDir()
+		if err != nil {
+			return "", fmt.Errorf("failed to determine user home directory: %s", err)
+		}
+		gopath = filepath.Join(home, "go")
 	}
 
-	programPath := path.Join(
-		filepath.SplitList(gopath)[0], "bin", "tf-acc-external-data-source",
-	)
-	return programPath, nil
+	gobin := os.Getenv("GOBIN")
+	if gobin == "" {
+		gobin = filepath.Join(filepath.SplitList(gopath)[0], "bin")
+	}
+
+	programPath := filepath.Join(gobin, binaryName)
+	return filepath.ToSlash(programPath), nil
 }
 
 // Reference: https://github.com/hashicorp/terraform-provider-external/issues/145
