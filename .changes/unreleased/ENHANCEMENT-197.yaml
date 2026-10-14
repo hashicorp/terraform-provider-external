@@ -1,0 +1,5 @@
+kind: ENHANCEMENTS
+body: 'data-source/external: Add deprecation warning when program is resolved from the current directory via PATH'
+time: 2026-09-14T10:55:00.000000-04:00
+custom:
+    Issue: "197"
